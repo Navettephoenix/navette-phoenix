@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:label="Navette Phoenix" android:icon="@drawable/np_logo_officiel" android:theme="@style/AppTheme"
+        android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name="fr.navettephoenix.app.FareActivity" android:exported="false" />
+        <activity android:name="fr.navettephoenix.app.MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
