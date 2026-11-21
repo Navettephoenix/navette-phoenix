@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = 'NavettePhoenix'
-include ':app'
+rootProject.name = "NavettePhoenixV20"
+include(":app")

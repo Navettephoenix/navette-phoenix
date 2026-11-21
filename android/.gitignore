@@ -2,5 +2,12 @@
 .idea/
 build/
 local.properties
+app/google-services.json
 *.jks
 *.keystore
+*.aab
+*.apk
+node_modules/
+.env*
+.firebase/
+firebase-debug.log*
