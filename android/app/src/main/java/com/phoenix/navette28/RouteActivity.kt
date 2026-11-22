@@ -4,23 +4,26 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.View
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.fragment.app.FragmentActivity
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.text.NumberFormat
 import java.util.Locale
 
-class RouteActivity : FragmentActivity() {
+class RouteActivity : AppCompatActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        enableEdgeToEdge()
         val from = intent.getStringExtra("from") ?: return finish()
         val to = intent.getStringExtra("to") ?: return finish()
         val content = column().apply { setBackgroundColor(Palette.paper) }
@@ -34,24 +37,26 @@ class RouteActivity : FragmentActivity() {
         }
         val status = content.label("Calcul de l’itinéraire…", 15f, Palette.muted)
         content.space(9)
-        val gateway = FirebaseGateway(applicationContext)
-        if (!gateway.available || !BuildConfig.HAS_MAPS) {
+        val gateway = FirebaseGateway.get()
+        if (!gateway.available) {
             status.text = "Utilisez Google Maps pour afficher le trajet, la distance et la durée."
             return
         }
-        val holder = FrameLayout(this).apply { id = MAP_CONTAINER }
-        content.addView(holder, android.widget.LinearLayout.LayoutParams(-1, 0, 1f))
-        val fragment = supportFragmentManager.findFragmentByTag("maps") as? SupportMapFragment
-            ?: SupportMapFragment.newInstance().also {
-                supportFragmentManager.beginTransaction().replace(MAP_CONTAINER, it, "maps").commit()
-            }
+        val fragment = if (BuildConfig.HAS_MAPS) {
+            val holder = FrameLayout(this).apply { id = R.id.route_map_container }
+            content.addView(holder, LinearLayout.LayoutParams(-1, 0, 1f))
+            supportFragmentManager.findFragmentByTag("maps") as? SupportMapFragment
+                ?: SupportMapFragment.newInstance().also {
+                    supportFragmentManager.beginTransaction().replace(holder.id, it, "maps").commit()
+                }
+        } else null
         gateway.call("computeRoute", mapOf("from" to from, "to" to to)).addOnCompleteListener(this) { task ->
             val route = if (task.isSuccessful) task.result as? Map<*, *> else null
             val polyline = route?.get("polyline") as? String
             val metres = route?.get("distanceMeters") as? Number
             val seconds = route?.get("durationSeconds") as? Number
             val points = polyline?.let { runCatching { decode(it) }.getOrNull() }.orEmpty()
-            if (points.size < 2 || metres == null || seconds == null) {
+            if (metres == null || seconds == null) {
                 status.text = "Le calcul est indisponible. Vous pouvez continuer dans Google Maps."
                 return@addOnCompleteListener
             }
@@ -59,7 +64,9 @@ class RouteActivity : FragmentActivity() {
                 .format(metres.toDouble() / 1000)
             val minutes = (seconds.toInt() + 59) / 60
             status.text = "$km km · environ $minutes min"
-            fragment.getMapAsync { map ->
+            if (points.size < 2) return@addOnCompleteListener
+            fragment?.getMapAsync { map ->
+                map.clear()
                 map.addPolyline(PolylineOptions().addAll(points).color(Palette.sun).width(dp(5).toFloat()))
                 map.addMarker(MarkerOptions().position(points.first()).title("Départ"))
                 map.addMarker(MarkerOptions().position(points.last()).title("Arrivée"))
@@ -69,10 +76,10 @@ class RouteActivity : FragmentActivity() {
         }
     }
 
-    private fun actionBar(content: android.widget.LinearLayout, from: String, to: String) {
-        content.action("‹  Retour") { finish() }
+    private fun actionBar(content: LinearLayout, from: String, to: String) {
+        content.action("Retour") { finish() }
         content.space(12)
-        content.label("Votre itinéraire", 27f, bold = true)
+        content.label("Votre itinéraire", 27f, bold = true, heading = true)
         content.label("$from → $to", 15f)
         content.space(8)
         content.action("Ouvrir dans Google Maps") {
@@ -84,7 +91,7 @@ class RouteActivity : FragmentActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, uri))
             } catch (_: ActivityNotFoundException) {
-                android.app.AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                     .setMessage("Aucune application ne peut afficher l’itinéraire.")
                     .setPositiveButton("OK", null).show()
             }
@@ -118,7 +125,4 @@ class RouteActivity : FragmentActivity() {
         }
     }
 
-    private companion object {
-        val MAP_CONTAINER = View.generateViewId()
-    }
 }

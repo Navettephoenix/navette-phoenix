@@ -1,12 +1,16 @@
 <resources>
     <string name="app_name">Navette Phoenix 28</string>
-    <style name="BaseTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#AA320A</item>
-        <item name="android:windowBackground">#FAF7F3</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:windowActionModeOverlay">true</item>
+    <style name="BaseTheme" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#9B2A0D</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#FFDBCB</item>
+        <item name="colorOnPrimaryContainer">#482112</item>
+        <item name="colorSecondary">#694232</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSurface">#FFFDFB</item>
+        <item name="colorOnSurface">#251D19</item>
+        <item name="colorOutline">#807067</item>
+        <item name="android:windowBackground">#FAF6F2</item>
     </style>
     <style name="AppTheme" parent="BaseTheme" />
 </resources>

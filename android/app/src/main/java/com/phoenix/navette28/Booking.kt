@@ -55,10 +55,11 @@ data class Booking(
         if (!phone.matches(Regex("[+0-9 ().-]{7,24}")) || phone.count(Char::isDigit) !in 8..15) {
             return "Vérifiez le numéro de téléphone."
         }
-        if (email.length > 120 || !email.matches(Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))) {
+        if (email.length !in 5..120 || !email.matches(Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))) {
             return "Vérifiez l’adresse e-mail."
         }
-        if (!consent) return "Autorisez le traitement des informations pour envoyer la demande."
+        if (needs.length > 300 || notes.length > 500) return "Raccourcissez les informations facultatives."
+        if (!consent) return "Lisez les informations sur vos données, puis cochez la case."
         return null
     }
 

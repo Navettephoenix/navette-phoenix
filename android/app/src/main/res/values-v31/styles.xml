@@ -1,6 +1,6 @@
 <resources>
     <style name="AppTheme" parent="BaseTheme">
         <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="android:windowSplashScreenBackground">#FAF7F3</item>
+        <item name="android:windowSplashScreenBackground">#FAF6F2</item>
     </style>
 </resources>

@@ -54,7 +54,8 @@ export const createReservation = onCall(callable, async request => {
     transaction.create(reservation, {
       ...input.booking,
       reference, fingerprint, uid, status: 'RECEIVED', createdAt: FieldValue.serverTimestamp(),
-      pushToken: input.pushToken || null, mailStatus: 'PENDING',
+      pushToken: input.pushToken || null, notifyOnStatus: Boolean(input.pushToken),
+      mailStatus: 'PENDING',
     });
     return { reference, status: 'RECEIVED' };
   });
@@ -68,11 +69,37 @@ export const listReservations = onCall(callable, async request => {
   })) };
 });
 
+export const refreshReservationNotifications = onCall(callable, async request => {
+  const uid = uidOf(request);
+  const token = request.data?.pushToken;
+  if (typeof token !== 'string' || token.length < 1 || token.length > 512 || /\s/.test(token)) {
+    throw new HttpsError('invalid-argument', 'Jeton de notification invalide.');
+  }
+  const recent = db.collection('reservations').where('uid', '==', uid)
+    .orderBy('createdAt', 'desc').limit(30);
+  await db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(recent);
+    for (const doc of snapshot.docs) {
+      const previous = doc.get('pushToken');
+      const optedIn = doc.get('notifyOnStatus') ?? Boolean(previous);
+      if (doc.get('status') === 'RECEIVED' && optedIn && previous !== token) {
+        transaction.update(doc.ref, { pushToken: token, notifyOnStatus: true });
+      }
+    }
+  });
+  return { received: true };
+});
+
 export const requestDeletion = onCall(callable, async request => {
   const uid = uidOf(request);
-  await db.collection('deletionRequests').doc(uid).set({
-    uid, status: 'PENDING', createdAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const ref = db.collection('deletionRequests').doc(uid);
+  await db.runTransaction(async transaction => {
+    const existing = await transaction.get(ref);
+    if (existing.get('status') === 'PENDING') return;
+    transaction.set(ref, {
+      uid, status: 'PENDING', createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
   return { received: true };
 });
 
@@ -147,7 +174,12 @@ export const notifyReservationStatus = onDocumentUpdated({
     });
   } catch (error) {
     if (error.code === 'messaging/registration-token-not-registered') {
-      await after.ref.update({ pushToken: FieldValue.delete() });
+      await db.runTransaction(async transaction => {
+        const latest = await transaction.get(after.ref);
+        if (latest.exists && latest.get('pushToken') === after.get('pushToken')) {
+          transaction.update(after.ref, { pushToken: FieldValue.delete(), notifyOnStatus: true });
+        }
+      });
       return;
     }
     throw new Error('Notification de statut indisponible.');

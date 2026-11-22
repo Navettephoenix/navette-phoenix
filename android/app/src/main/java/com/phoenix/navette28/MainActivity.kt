@@ -2,7 +2,6 @@ package com.phoenix.navette28
 
 import android.Manifest
 import android.animation.ValueAnimator
-import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
@@ -15,18 +14,19 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
-import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.ScrollView
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.FragmentActivity
+import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.messaging.FirebaseMessaging
@@ -35,12 +35,13 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
     private enum class Screen { HOME, TRIP, CONTACT_FORM, REVIEW, DESTINATIONS, HISTORY, CONTACT, PRIVACY }
 
     private val values = mutableMapOf<String, String>()
-    private val gateway by lazy { FirebaseGateway(applicationContext) }
+    private val gateway by lazy { FirebaseGateway.get() }
     private val storage by lazy { getSharedPreferences("reservation-references", MODE_PRIVATE) }
     private var screen = Screen.HOME
     private var service = Service.NAVETTE
@@ -48,13 +49,22 @@ class MainActivity : FragmentActivity() {
     private var consent = false
     private var notifications = false
     private var sending = false
+    private var requestingNotifications = false
+    private var privacyOrigin = Screen.HOME
+    private lateinit var scroll: ScrollView
     private lateinit var column: LinearLayout
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        send(booking(), it)
+        requestingNotifications = false
+        if (screen == Screen.REVIEW) {
+            notifications = it
+            render(Screen.REVIEW, preserveScroll = true)
+            send(booking(), it)
+        }
     }
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        enableEdgeToEdge()
         state?.getBundle("form")?.let { form ->
             for (key in form.keySet()) values[key] = form.getString(key).orEmpty()
         }
@@ -63,6 +73,8 @@ class MainActivity : FragmentActivity() {
         roundTrip = state?.getBoolean("round") ?: false
         consent = state?.getBoolean("consent") ?: false
         notifications = state?.getBoolean("notifications") ?: false
+        requestingNotifications = state?.getBoolean("requestingNotifications") ?: false
+        privacyOrigin = Screen.entries.firstOrNull { it.name == state?.getString("privacyOrigin") } ?: Screen.HOME
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() = back()
         })
@@ -79,14 +91,32 @@ class MainActivity : FragmentActivity() {
         outState.putBoolean("round", roundTrip)
         outState.putBoolean("consent", consent)
         outState.putBoolean("notifications", notifications)
+        outState.putBoolean("requestingNotifications", requestingNotifications)
+        outState.putString("privacyOrigin", privacyOrigin.name)
     }
 
-    private fun render(next: Screen) {
+    override fun onStart() {
+        super.onStart()
+        ReservationMessaging.syncPendingToken(applicationContext)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("showHistory", false) && !sending && !requestingNotifications) {
+            render(Screen.HISTORY)
+        }
+    }
+
+    private fun render(next: Screen, preserveScroll: Boolean = false) {
+        val previousOffset = if (preserveScroll && ::scroll.isInitialized) scroll.scrollY else 0
         screen = next
-        val scroll = ScrollView(this).apply { isFillViewport = true }
+        scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Palette.paper)
+        }
         val root = FrameLayout(this).apply { setBackgroundColor(Palette.paper) }
         column = column()
-        val width = minOf(resources.displayMetrics.widthPixels, dp(560))
+        val width = if (resources.configuration.screenWidthDp >= 560) dp(560) else -1
         root.addView(column, FrameLayout.LayoutParams(width, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         scroll.addView(root)
         ViewCompat.setOnApplyWindowInsetsListener(scroll) { _, insets ->
@@ -101,7 +131,7 @@ class MainActivity : FragmentActivity() {
         column.requestFocus()
 
         if (next != Screen.HOME) {
-            column.action("‹  Retour") { back() }
+            column.action("Retour") { back() }
             column.space(16)
         }
         when (next) {
@@ -114,70 +144,58 @@ class MainActivity : FragmentActivity() {
             Screen.CONTACT -> contact()
             Screen.PRIVACY -> privacy()
         }
-        if (ValueAnimator.areAnimatorsEnabled()) {
+        if (previousOffset > 0) scroll.post { scroll.scrollTo(0, previousOffset) }
+        if (!preserveScroll && Build.VERSION.SDK_INT >= 26 && ValueAnimator.areAnimatorsEnabled()) {
             root.alpha = .65f
             root.animate().alpha(1f).setDuration(140).start()
         }
     }
 
     private fun back() {
-        if (sending) return
+        if (sending || requestingNotifications) return
         when (screen) {
             Screen.HOME -> finish()
             Screen.CONTACT_FORM -> render(Screen.TRIP)
             Screen.REVIEW -> render(Screen.CONTACT_FORM)
-            Screen.PRIVACY -> render(Screen.CONTACT)
+            Screen.PRIVACY -> render(privacyOrigin)
             else -> render(Screen.HOME)
         }
     }
 
     private fun home() {
-        val menuButton = column.action("Menu") {}
-        menuButton.setOnClickListener {
-            PopupMenu(this, menuButton).apply {
-                menu.add("Mes demandes")
-                menu.add("Contact et informations")
-                menu.add("Confidentialité")
-                setOnMenuItemClickListener { item ->
-                    render(when (item.title) {
-                        "Mes demandes" -> Screen.HISTORY
-                        "Confidentialité" -> Screen.PRIVACY
-                        else -> Screen.CONTACT
-                    })
-                    true
-                }
-            }.show()
-        }
-        column.space(12)
         val header = column().apply {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                intArrayOf(0xFF372821.toInt(), 0xFF251E1B.toInt(), 0xFF452519.toInt()))
-                .apply { cornerRadius = dp(24).toFloat() }
-            setPadding(dp(20), dp(20), dp(20), dp(20))
+                intArrayOf(0xFF291D19.toInt(), 0xFF4C2117.toInt(), 0xFF782711.toInt()))
+                .apply { cornerRadius = dp(28).toFloat() }
+            setPadding(dp(22), dp(22), dp(22), dp(24))
         }
         val logo = ImageView(this).apply {
             setImageResource(R.drawable.phoenix_logo)
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            background = surface(Palette.sun, 16)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            background = surface(Palette.sun, 20)
             clipToOutline = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        header.addView(logo, dp(65), dp(65))
+        header.addView(logo, dp(92), dp(92))
         header.space(15)
-        header.label("Navette Phoenix 28", 32f, Color.WHITE, true)
+        header.label("Navette Phoenix 28", 35f, Color.WHITE, bold = true, heading = true)
         header.space(6)
         header.label("Transport à la demande dans le Perche et transferts privés", 16f, 0xFFF9D9C6.toInt())
         column.addView(header, -1, -2)
         column.space(16)
-        column.action("Réserver une navette", true) { start(Service.NAVETTE) }
-            .setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_navette, 0, 0, 0)
+        column.action("Réserver une navette", true, R.drawable.ic_navette) { start(Service.NAVETTE) }
         column.space(9)
-        column.action("Demander un devis") { start(Service.DEVIS) }
-            .setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_devis, 0, 0, 0)
+        column.action("Demander un devis", iconRes = R.drawable.ic_devis) { start(Service.DEVIS) }
         column.space(9)
-        column.action("Nos destinations") { render(Screen.DESTINATIONS) }
-            .setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_destinations, 0, 0, 0)
+        column.action("Nos destinations", iconRes = R.drawable.ic_destinations) { render(Screen.DESTINATIONS) }
         column.space(16)
-        column.label("1 à 4 passagers · Service Phoenix LTS", 14f, Palette.muted)
+        column.action("Mes demandes") { render(Screen.HISTORY) }
+        column.space(9)
+        column.action("Nous contacter et informations pratiques") { render(Screen.CONTACT) }
+        column.space(9)
+        column.action("Notre site officiel") { open(Uri.parse("https://www.navettephoenix.fr/")) }
+        column.space(9)
+        column.action("Politique de confidentialité") { showPrivacy() }
     }
 
     private fun start(next: Service) {
@@ -186,7 +204,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun trip() {
-        column.label(service.label, 27f, bold = true)
+        column.label(service.label, 27f, bold = true, heading = true)
         column.space(5)
         column.label("Étape 1 sur 3 · Trajet", 14f, Palette.muted)
         column.space(12)
@@ -204,13 +222,13 @@ class MainActivity : FragmentActivity() {
         val schedule = column.panel("Date et passagers")
         dateControl(schedule, "Date du départ", "date")
         timeControl(schedule, "Heure de prise en charge", "time")
-        val round = CheckBox(this).apply {
+        val round = MaterialCheckBox(this).apply {
             text = "Aller-retour"
             isChecked = roundTrip
             minHeight = dp(48)
             setOnCheckedChangeListener { _, checked ->
                 roundTrip = checked
-                render(Screen.TRIP)
+                render(Screen.TRIP, preserveScroll = true)
             }
         }
         schedule.addView(round)
@@ -229,14 +247,20 @@ class MainActivity : FragmentActivity() {
     private fun addressField(parent: LinearLayout, title: String, key: String) {
         val field = bind(parent, title, key)
         if (!gateway.available) return
-        val search = parent.action("Rechercher l’adresse $title".lowercase(Locale.FRANCE).replaceFirstChar { it.uppercase() }) {
+        var searching = false
+        val search = parent.action("Suggestions pour « $title »") {
+            if (searching) return@action
             val query = field.text.toString().trim()
             if (query.length < 3) {
                 field.error = "Saisissez au moins trois caractères."
                 return@action
             }
+            searching = true
             gateway.call("suggestAddresses", mapOf("query" to query)).addOnCompleteListener(this) { task ->
-                if (screen != Screen.TRIP || !field.isAttachedToWindow) return@addOnCompleteListener
+                searching = false
+                if (screen != Screen.TRIP || !field.isAttachedToWindow || field.text.toString().trim() != query) {
+                    return@addOnCompleteListener
+                }
                 if (!task.isSuccessful) {
                     showMessage("La recherche est indisponible. Vous pouvez compléter l’adresse à la main.")
                     return@addOnCompleteListener
@@ -244,7 +268,7 @@ class MainActivity : FragmentActivity() {
                 val items = ((task.result as? Map<*, *>)?.get("addresses") as? List<*>)
                     .orEmpty().filterIsInstance<String>().toTypedArray()
                 if (items.isEmpty()) showMessage("Aucune adresse trouvée. Ajoutez la commune ou le code postal.")
-                else AlertDialog.Builder(this).setTitle("Choisir une adresse").setItems(items) { _, which ->
+                else MaterialAlertDialogBuilder(this).setTitle("Choisir une adresse").setItems(items) { _, which ->
                     field.setText(items[which])
                 }.setNegativeButton("Annuler", null).show()
             }
@@ -254,7 +278,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun details() {
-        column.label("Vos coordonnées", 27f, bold = true)
+        column.label("Vos coordonnées", 27f, bold = true, heading = true)
         column.space(5)
         column.label("Étape 2 sur 3 · Contact", 14f, Palette.muted)
         column.space(12)
@@ -270,12 +294,14 @@ class MainActivity : FragmentActivity() {
         bind(extra, "Commentaires (facultatif)", "notes", limit = 500, multiline = true)
         extra.label("Indiquez seulement les détails nécessaires à votre prise en charge.", 13f, Palette.muted)
         column.space(12)
-        column.addView(CheckBox(this).apply {
-            text = "J’autorise Phoenix LTS à utiliser ces informations pour traiter ma demande."
+        column.addView(MaterialCheckBox(this).apply {
+            text = "J’ai lu les informations sur l’utilisation de mes données."
             isChecked = consent
             minHeight = dp(52)
             setOnCheckedChangeListener { _, checked -> consent = checked }
         })
+        column.space(10)
+        column.action("Politique de confidentialité") { showPrivacy() }
         column.space(10)
         column.action("Vérifier ma demande", true) {
             booking().validateContact()?.let(::showMessage) ?: render(Screen.REVIEW)
@@ -284,7 +310,7 @@ class MainActivity : FragmentActivity() {
 
     private fun review() {
         val current = booking()
-        column.label("Vérifier votre demande", 27f, bold = true)
+        column.label("Vérifier votre demande", 27f, bold = true, heading = true)
         column.space(5)
         column.label("Étape 3 sur 3 · Récapitulatif", 14f, Palette.muted)
         column.space(12)
@@ -308,25 +334,28 @@ class MainActivity : FragmentActivity() {
         if (current.notes.isNotEmpty()) details.label("Notes · ${current.notes}", 15f)
         column.space(12)
         if (gateway.available) {
-            column.addView(CheckBox(this).apply {
+            column.addView(MaterialCheckBox(this).apply {
                 text = "Recevoir une notification quand le statut change"
                 isChecked = notifications
                 minHeight = dp(48)
                 setOnCheckedChangeListener { _, checked -> notifications = checked }
             })
         } else {
-            column.label("L’envoi est indisponible tant que Firebase n’est pas configuré.", 15f, Palette.sun)
+            column.label("L’envoi en ligne est indisponible. Vous pouvez contacter Phoenix LTS.", 15f, Palette.sun)
             column.space(8)
         }
-        column.action("Envoyer ma demande", true) {
-            if (!gateway.available) {
-                showMessage("Le service de réservation doit être configuré avant l’envoi.")
-                return@action
-            }
+        val sendButton = column.action("Envoyer ma demande", true) {
+            if (requestingNotifications) return@action
             if (notifications && Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestingNotifications = true
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else send(current, notifications)
+        }
+        sendButton.isEnabled = gateway.available && !requestingNotifications
+        if (!gateway.available) {
+            column.space(8)
+            column.action("Contacter Phoenix LTS") { render(Screen.CONTACT) }
         }
     }
 
@@ -346,37 +375,41 @@ class MainActivity : FragmentActivity() {
             showMessage("Le téléphone ne peut pas enregistrer la référence d’envoi. Réessayez après avoir libéré de l’espace.")
             return
         }
-        val progress = AlertDialog.Builder(this).setTitle("Envoi de la demande")
+        val progress = MaterialAlertDialogBuilder(this).setTitle("Envoi de la demande")
             .setMessage("Nous attendons la réponse du serveur.").setCancelable(false).show()
-        val token = if (notify) FirebaseMessaging.getInstance().token.continueWith {
-            if (it.isSuccessful) it.result else ""
+        val token = if (notify) {
+            Tasks.withTimeout(FirebaseMessaging.getInstance().token, 5, TimeUnit.SECONDS)
+                .continueWith { if (it.isSuccessful) it.result else "" }
         } else Tasks.forResult("")
         token.onSuccessTask { pushToken ->
             gateway.call("createReservation", current.payload(requestId) + ("pushToken" to pushToken))
+                .onSuccessTask { response -> Tasks.forResult(response to pushToken.isNotEmpty()) }
         }.addOnCompleteListener { task ->
             sending = false
             if (isDestroyed || isFinishing) return@addOnCompleteListener
             progress.dismiss()
-            val reply = if (task.isSuccessful) task.result as? Map<*, *> else null
+            val result = if (task.isSuccessful) task.result else null
+            val reply = result?.first as? Map<*, *>
             val reference = reply?.get("reference") as? String
             if (reference.isNullOrBlank()) {
                 showMessage(errorMessage(task.exception))
                 return@addOnCompleteListener
             }
+            if (result?.second == true) ReservationMessaging.markEnabled(this)
             storage.edit().putString("latest", reference).apply()
             values.clear()
             roundTrip = false
             consent = false
             notifications = false
             render(Screen.HISTORY)
-            AlertDialog.Builder(this).setTitle("Demande enregistrée")
-                .setMessage("Référence ${reference}. Phoenix LTS doit encore confirmer la disponibilité.")
+            MaterialAlertDialogBuilder(this).setTitle("Demande enregistrée")
+                .setMessage("${statusLabel(reply?.get("status"))}.\n\nRéférence : $reference")
                 .setPositiveButton("OK", null).show()
         }
     }
 
     private fun history() {
-        column.label("Mes demandes", 28f, bold = true)
+        column.label("Mes demandes", 28f, bold = true, heading = true)
         column.space(12)
         val panel = column.panel()
         val latest = storage.getString("latest", null)
@@ -392,20 +425,21 @@ class MainActivity : FragmentActivity() {
             val rows = ((task.result as? Map<*, *>)?.get("reservations") as? List<*>).orEmpty()
             status.text = if (rows.isEmpty()) "Aucune demande envoyée depuis cet appareil." else "Dernières demandes"
             for (row in rows.filterIsInstance<Map<*, *>>()) {
-                val label = when (row["status"]) {
-                    "CONFIRMED" -> "Trajet confirmé par Phoenix LTS"
-                    "DECLINED" -> "Demande refusée"
-                    "CANCELLED" -> "Demande annulée"
-                    else -> "Demande reçue · en attente"
-                }
                 panel.space(10)
-                panel.label("${row["reference"]} · $label", 15f, bold = true)
+                panel.label("${row["reference"]} · ${statusLabel(row["status"])}", 15f, bold = true)
             }
         }
     }
 
+    private fun statusLabel(status: Any?): String = when (status) {
+        "CONFIRMED" -> "Trajet confirmé par Phoenix LTS"
+        "DECLINED" -> "Demande refusée"
+        "CANCELLED" -> "Demande annulée"
+        else -> "Demande reçue, en attente de confirmation par Phoenix LTS"
+    }
+
     private fun destinations() {
-        column.label("Nos destinations", 28f, bold = true)
+        column.label("Nos destinations", 28f, bold = true, heading = true)
         column.space(10)
         val local = column.panel("Navette dans le Perche")
         val communes = assets.open("communes.csv").bufferedReader().useLines { lines ->
@@ -414,7 +448,7 @@ class MainActivity : FragmentActivity() {
         for (sector in listOf("Forêts du Perche", "Terres de Perche")) {
             val places = communes.filter { it[0] == sector }.map { it[2] }.toTypedArray()
             local.action("$sector · ${places.size} communes") {
-                AlertDialog.Builder(this).setTitle(sector).setItems(places) { _, which ->
+                MaterialAlertDialogBuilder(this).setTitle(sector).setItems(places) { _, which ->
                     values["departure"] = places[which]
                     start(Service.NAVETTE)
                 }.setNegativeButton("Fermer", null).show()
@@ -433,7 +467,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun contact() {
-        column.label("Contact et informations", 27f, bold = true)
+        column.label("Contact et informations", 27f, bold = true, heading = true)
         column.space(12)
         val panel = column.panel("Phoenix LTS")
         panel.label("Transport de personnes, transport à la demande et transferts privés.", 16f)
@@ -443,24 +477,35 @@ class MainActivity : FragmentActivity() {
             panel.action("Écrire à Phoenix LTS") { open(Uri.fromParts("mailto", BuildConfig.BOOKING_EMAIL, null)) }
         }
         column.space(12)
-        column.action("Confidentialité") { render(Screen.PRIVACY) }
+        column.action("Notre site officiel") { open(Uri.parse("https://www.navettephoenix.fr/")) }
+        column.space(9)
+        column.action("Politique de confidentialité") { showPrivacy() }
+    }
+
+    private fun showPrivacy() {
+        privacyOrigin = screen
+        render(Screen.PRIVACY)
     }
 
     private fun privacy() {
-        column.label("Confidentialité", 27f, bold = true)
+        column.label("Confidentialité et données personnelles", 25f, bold = true, heading = true)
         column.space(12)
-        val info = column.panel("Vos informations")
-        info.label("Phoenix LTS utilise vos coordonnées, vos adresses et les détails du trajet pour traiter votre demande. Les demandes sont stockées sur le serveur et transmises au service de réservation. Si vous activez les notifications, un identifiant technique permet de prévenir cet appareil.", 15f)
+        val info = column.panel("Traitement de votre demande")
+        info.label("Phoenix LTS utilise vos coordonnées et les détails du trajet pour répondre à votre demande, établir un devis ou organiser le transport.", 15f)
         info.space(10)
-        info.label("La recherche d’adresses et l’itinéraire transmettent les adresses concernées à Google Maps. Vous pouvez les saisir manuellement et envoyer votre demande sans ouvrir la carte.", 15f)
-        if (BuildConfig.PRIVACY_URL.startsWith("https://")) {
-            info.space(10)
-            info.action("Lire la politique de confidentialité") { open(Uri.parse(BuildConfig.PRIVACY_URL)) }
-        }
+        info.label("Les demandes envoyées sont hébergées par Firebase. Le service de réservation reçoit les informations utiles au trajet. Si vous activez les notifications, un identifiant technique permet de prévenir cet appareil.", 15f)
+        info.space(10)
+        info.label("La recherche d’adresses et l’itinéraire transmettent les adresses concernées à Google Maps. Vous pouvez aussi saisir vos adresses à la main.", 15f)
+        info.space(10)
+        info.label("Pour exercer vos droits d’accès, de rectification ou d’effacement, contactez Phoenix LTS via la rubrique Contact.", 15f)
+        info.space(10)
+        info.action("Lire la politique de confidentialité") { openPrivacyPolicy() }
+        info.space(8)
+        info.action("Contacter Phoenix LTS") { render(Screen.CONTACT) }
         if (gateway.available) {
             column.space(12)
             column.action("Demander la suppression de mes données") {
-                AlertDialog.Builder(this).setTitle("Supprimer mes données")
+                MaterialAlertDialogBuilder(this).setTitle("Supprimer mes données")
                     .setMessage("Une demande de suppression sera transmise à Phoenix LTS pour les demandes de cet appareil.")
                     .setNegativeButton("Annuler", null).setPositiveButton("Demander") { _, _ ->
                         gateway.call("requestDeletion", emptyMap()).addOnCompleteListener(this) { task ->
@@ -482,11 +527,15 @@ class MainActivity : FragmentActivity() {
     private fun dateControl(parent: LinearLayout, caption: String, key: String) {
         parent.action(value(key).takeIf(String::isNotEmpty)?.let { "$caption · ${Booking.displayDate(it)}" } ?: caption) {
             val today = LocalDate.now(Booking.PARIS)
-            val selected = runCatching { LocalDate.parse(value(key)) }.getOrDefault(today)
+            val departure = if (key == "returnDate") runCatching { LocalDate.parse(value("date")) }.getOrNull() else null
+            val earliest = maxOf(today, departure ?: today)
+            val selected = maxOf(earliest, runCatching { LocalDate.parse(value(key)) }.getOrDefault(earliest))
             DatePickerDialog(this, { _, year, month, day ->
                 values[key] = LocalDate.of(year, month + 1, day).toString()
-                render(Screen.TRIP)
-            }, selected.year, selected.monthValue - 1, selected.dayOfMonth).show()
+                render(Screen.TRIP, preserveScroll = true)
+            }, selected.year, selected.monthValue - 1, selected.dayOfMonth).apply {
+                datePicker.minDate = earliest.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }.show()
         }
         parent.space(7)
     }
@@ -496,7 +545,7 @@ class MainActivity : FragmentActivity() {
             val selected = runCatching { LocalTime.parse(value(key)) }.getOrDefault(LocalTime.of(9, 0))
             TimePickerDialog(this, { _, hour, minute ->
                 values[key] = String.format(Locale.ROOT, "%02d:%02d", hour, minute)
-                render(Screen.TRIP)
+                render(Screen.TRIP, preserveScroll = true)
             }, selected.hour, selected.minute, true).show()
         }
         parent.space(7)
@@ -515,7 +564,7 @@ class MainActivity : FragmentActivity() {
         value("name"), value("phone"), value("email"), value("needs"), value("notes"), consent)
 
     private fun showMessage(text: String) {
-        AlertDialog.Builder(this).setMessage(text).setPositiveButton("OK", null).show()
+        MaterialAlertDialogBuilder(this).setMessage(text).setPositiveButton("OK", null).show()
     }
 
     private fun errorMessage(error: Exception?): String =
@@ -526,6 +575,13 @@ class MainActivity : FragmentActivity() {
             FirebaseFunctionsException.Code.PERMISSION_DENIED -> "Le service n’a pas pu vérifier cet appareil."
             else -> "Aucun accusé de réception pour le moment. Vérifiez votre connexion et réessayez. La même demande conserve sa référence d’envoi."
         }
+
+    private fun openPrivacyPolicy() {
+        val configured = Uri.parse(BuildConfig.PRIVACY_URL)
+        val policyUrl = configured.takeIf { it.scheme == "https" && it.host == "www.navettephoenix.fr" }
+            ?: Uri.parse("https://www.navettephoenix.fr/politique")
+        open(policyUrl)
+    }
 
     private fun open(uri: Uri) {
         try {

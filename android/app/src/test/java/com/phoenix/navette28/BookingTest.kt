@@ -37,4 +37,23 @@ class BookingTest {
         assertEquals(3, payload["luggage"])
         assertEquals("NAVETTE", payload["service"])
     }
+
+    @Test fun rejectsMissingAddressesAndIncompleteReturn() {
+        assertNotNull(booking.copy(departure = "").validateTrip(now))
+        assertNotNull(booking.copy(returnDate = booking.date).validateTrip(now))
+        assertNotNull(booking.copy(returnTime = "18:00").validateTrip(now))
+    }
+
+    @Test fun rejectsInvalidDatesAndDstGapsAndOverlapsInParis() {
+        val beforeDstChange = LocalDateTime.of(2027, 1, 1, 10, 0)
+        assertNotNull(booking.copy(date = "2027-02-30").validateTrip(beforeDstChange))
+        assertNotNull(booking.copy(date = "2027-03-28", time = "02:20").validateTrip(beforeDstChange))
+        assertNotNull(booking.copy(date = "2027-10-31", time = "02:20").validateTrip(beforeDstChange))
+    }
+
+    @Test fun allowsEmptyOptionalFieldsAndRejectsOversizedText() {
+        assertNull(booking.validateContact())
+        assertNotNull(booking.copy(needs = "a".repeat(301)).validateContact())
+        assertNotNull(booking.copy(notes = "a".repeat(501)).validateContact())
+    }
 }

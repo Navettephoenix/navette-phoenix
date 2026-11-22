@@ -1,8 +1,10 @@
 .gradle/
+.kotlin/
 .idea/
 build/
 local.properties
 app/google-services.json
+/app/src/*/google-services.json
 *.jks
 *.keystore
 *.aab
@@ -11,3 +13,4 @@ node_modules/
 .env*
 .firebase/
 firebase-debug.log*
+firestore-debug.log*
