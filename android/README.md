@@ -45,12 +45,14 @@ Depuis le terminal Windows d’Android Studio, `./gradlew.bat :app:assembleDebug
 | Vérification | Résultat |
 |---|---|
 | APK de test | Compilé, signature de débogage et alignement ZIP 16 Ko vérifiés. 19,1 Mo. |
-| Android | Sept tests unitaires réussis. Analyse Android Lint sans erreur, 18 avertissements. |
+| Android | Sept tests unitaires et deux tests d’interface simulée sur API 24 réussis. Analyse Android Lint sans erreur, 18 avertissements. |
 | Serveur | Quatre tests unitaires et trois tests Firestore locaux réussis. |
 | Configuration Google Play | Manifeste `com.phoenix.navette`, minimum API 24, cible API 37. Code 20 provisoire. |
 | Territoire | Les 37 codes et noms de communes correspondent au référentiel officiel des deux intercommunalités. |
 | Reste à vérifier | Rendu réel sur Android, configuration Firebase et Maps de production, réception de l’e-mail, certificat d’importation local et validation Play Console. |
 
 Le test Firestore couvre l’enregistrement concurrent d’une même demande, le suivi limité au propriétaire, le blocage des lectures et écritures directes, la demande de suppression et l’actualisation du jeton de notification.
+
+Les tests d’interface simulée vérifient les actions visibles sur un petit écran, le retour depuis la confidentialité et le message d’erreur lorsqu’une adresse manque.
 
 [Communes des Forêts du Perche](https://geo.api.gouv.fr/epcis/200069912/communes?fields=nom,code) · [Communes des Terres de Perche](https://geo.api.gouv.fr/epcis/200070167/communes?fields=nom,code)
