@@ -27,7 +27,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.messaging.FirebaseMessaging
 import java.security.MessageDigest
@@ -246,7 +248,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun addressField(parent: LinearLayout, title: String, key: String) {
         val field = bind(parent, title, key)
-        if (!gateway.available) return
+        if (!gateway.available || BuildConfig.GOOGLE_MAIL) return
         var searching = false
         val search = parent.action("Suggestions pour « $title »") {
             if (searching) return@action
@@ -333,14 +335,14 @@ class MainActivity : AppCompatActivity() {
         if (current.needs.isNotEmpty()) details.label("Besoins · ${current.needs}", 15f)
         if (current.notes.isNotEmpty()) details.label("Notes · ${current.notes}", 15f)
         column.space(12)
-        if (gateway.available) {
+        if (gateway.available && !BuildConfig.GOOGLE_MAIL) {
             column.addView(MaterialCheckBox(this).apply {
                 text = "Recevoir une notification quand le statut change"
                 isChecked = notifications
                 minHeight = dp(48)
                 setOnCheckedChangeListener { _, checked -> notifications = checked }
             })
-        } else {
+        } else if (!gateway.available) {
             column.label("L’envoi en ligne est indisponible. Vous pouvez contacter Phoenix LTS.", 15f, Palette.sun)
             column.space(8)
         }
@@ -377,14 +379,20 @@ class MainActivity : AppCompatActivity() {
         }
         val progress = MaterialAlertDialogBuilder(this).setTitle("Envoi de la demande")
             .setMessage("Nous attendons la réponse du serveur.").setCancelable(false).show()
-        val token = if (notify) {
-            Tasks.withTimeout(FirebaseMessaging.getInstance().token, 5, TimeUnit.SECONDS)
-                .continueWith { if (it.isSuccessful) it.result else "" }
-        } else Tasks.forResult("")
-        token.onSuccessTask { pushToken ->
-            gateway.call("createReservation", current.payload(requestId) + ("pushToken" to pushToken))
-                .onSuccessTask { response -> Tasks.forResult(response to pushToken.isNotEmpty()) }
-        }.addOnCompleteListener { task ->
+        val operation: Task<Pair<Any?, Boolean>> = if (BuildConfig.GOOGLE_MAIL) {
+            GoogleMailGateway.submit(current, requestId)
+                .onSuccessTask { response -> Tasks.forResult(response to false) }
+        } else {
+            val token = if (notify) {
+                Tasks.withTimeout(FirebaseMessaging.getInstance().token, 5, TimeUnit.SECONDS)
+                    .continueWith { if (it.isSuccessful) it.result else "" }
+            } else Tasks.forResult("")
+            token.onSuccessTask { pushToken ->
+                gateway.call("createReservation", current.payload(requestId) + ("pushToken" to pushToken))
+                    .onSuccessTask { response -> Tasks.forResult(response to pushToken.isNotEmpty()) }
+            }
+        }
+        operation.addOnCompleteListener { task ->
             sending = false
             if (isDestroyed || isFinishing) return@addOnCompleteListener
             progress.dismiss()
@@ -416,13 +424,17 @@ class MainActivity : AppCompatActivity() {
         val status = panel.label(if (latest != null) "Dernière référence enregistrée · $latest" else "Aucune référence enregistrée sur cet appareil.")
         if (!gateway.available) return
         panel.space(9)
-        gateway.call("listReservations", emptyMap()).addOnCompleteListener(this) { task ->
+        val requests: Task<out List<*>> = if (BuildConfig.GOOGLE_MAIL) GoogleMailGateway.list()
+            else gateway.call("listReservations", emptyMap()).onSuccessTask { value ->
+                Tasks.forResult(((value as? Map<*, *>)?.get("reservations") as? List<*>).orEmpty())
+            }
+        requests.addOnCompleteListener(this) { task ->
             if (screen != Screen.HISTORY || !panel.isAttachedToWindow) return@addOnCompleteListener
             if (!task.isSuccessful) {
                 panel.label("L’actualisation est momentanément indisponible.", 14f, Palette.muted)
                 return@addOnCompleteListener
             }
-            val rows = ((task.result as? Map<*, *>)?.get("reservations") as? List<*>).orEmpty()
+            val rows = task.result
             status.text = if (rows.isEmpty()) "Aucune demande envoyée depuis cet appareil." else "Dernières demandes"
             for (row in rows.filterIsInstance<Map<*, *>>()) {
                 panel.space(10)
@@ -435,6 +447,10 @@ class MainActivity : AppCompatActivity() {
         "CONFIRMED" -> "Trajet confirmé par Phoenix LTS"
         "DECLINED" -> "Demande refusée"
         "CANCELLED" -> "Demande annulée"
+        "PENDING" -> "Demande enregistrée · En attente de transmission"
+        "SENDING" -> "Transmission en cours de vérification"
+        "SENT" -> "Demande transmise · En attente de confirmation par Phoenix LTS"
+        "INVALID" -> "Transmission impossible · Contactez Phoenix LTS"
         else -> "Demande reçue, en attente de confirmation par Phoenix LTS"
     }
 
@@ -493,7 +509,9 @@ class MainActivity : AppCompatActivity() {
         val info = column.panel("Traitement de votre demande")
         info.label("Phoenix LTS utilise vos coordonnées et les détails du trajet pour répondre à votre demande, établir un devis ou organiser le transport.", 15f)
         info.space(10)
-        info.label("Les demandes envoyées sont hébergées par Firebase. Le service de réservation reçoit les informations utiles au trajet. Si vous activez les notifications, un identifiant technique permet de prévenir cet appareil.", 15f)
+        info.label(if (BuildConfig.GOOGLE_MAIL)
+            "Les demandes sont enregistrées dans Firebase et transmises par e-mail à Phoenix LTS via Google."
+        else "Les demandes envoyées sont hébergées par Firebase. Le service de réservation reçoit les informations utiles au trajet. Si vous activez les notifications, un identifiant technique permet de prévenir cet appareil.", 15f)
         info.space(10)
         info.label("La recherche d’adresses et l’itinéraire transmettent les adresses concernées à Google Maps. Vous pouvez aussi saisir vos adresses à la main.", 15f)
         info.space(10)
@@ -508,7 +526,9 @@ class MainActivity : AppCompatActivity() {
                 MaterialAlertDialogBuilder(this).setTitle("Supprimer mes données")
                     .setMessage("Une demande de suppression sera transmise à Phoenix LTS pour les demandes de cet appareil.")
                     .setNegativeButton("Annuler", null).setPositiveButton("Demander") { _, _ ->
-                        gateway.call("requestDeletion", emptyMap()).addOnCompleteListener(this) { task ->
+                        val deletion = if (BuildConfig.GOOGLE_MAIL) GoogleMailGateway.requestDeletion()
+                            else gateway.call("requestDeletion", emptyMap())
+                        deletion.addOnCompleteListener(this) { task ->
                             showMessage(if (task.isSuccessful) "Demande de suppression enregistrée."
                                 else "La demande n’a pas pu être enregistrée. Contactez Phoenix LTS.")
                         }
@@ -568,7 +588,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun errorMessage(error: Exception?): String =
-        when ((error as? FirebaseFunctionsException)?.code) {
+        if ((error as? FirebaseFirestoreException)?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+            "L’envoi n’a pas été autorisé. Si vous venez d’envoyer une demande, attendez une minute puis réessayez."
+        } else when ((error as? FirebaseFunctionsException)?.code) {
             FirebaseFunctionsException.Code.INVALID_ARGUMENT -> "Revérifiez les champs et le créneau."
             FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> "Trop de demandes récentes. Réessayez plus tard."
             FirebaseFunctionsException.Code.UNAUTHENTICATED,

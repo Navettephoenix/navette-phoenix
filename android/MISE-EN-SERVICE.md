@@ -1,5 +1,17 @@
 # Activer l’envoi et préparer Google Play
 
+## Envoi via Google sans facturation
+
+1. Dans un projet Firebase **Spark**, activer Authentication anonyme et la base Firestore par défaut. Associer les deux identifiants Android à leurs fichiers `google-services.json`. Activer App Check pour Firestore avec Play Integrity sur la version Play et utiliser le jeton de débogage uniquement dans le projet de test.
+2. Dans `firebase`, déployer les règles et les index de ce projet avec `firebase deploy --only firestore --project ID_PROJET`. Attendre que l’index `googleMailRequests` soit prêt.
+3. Dans Google Apps Script, créer un projet autonome avec le compte Google qui enverra les e-mails. Copier `google-apps-script/Code.gs` et remplacer son manifeste par `google-apps-script/appsscript.json`. Donner au compte du déclencheur les droits Firestore de lecture et de modification des données dans le projet Firebase, par exemple via le rôle **Cloud Datastore User**. Le script utilise l’autorisation Google de ce compte.
+4. Dans les propriétés du script, renseigner `FIREBASE_PROJECT_ID` et `RESERVATION_MAIL_TO` avec la boîte Gmail de réservation confirmée. Exécuter une fois `relayGoogleMailRequests` pour autoriser les accès, puis créer un déclencheur toutes les cinq minutes pour cette fonction. Le script fonctionne avec ce déclencheur privé et ne nécessite aucun déploiement en application Web.
+5. Dans PowerShell, depuis le dossier Android, compiler avec `./gradlew.bat :app:assembleDebug`. Si les propriétés Gradle du PC contiennent déjà `navetteGoogleMail=false`, retirer cette ligne pour utiliser le mode Google de la V20.
+
+L’application affiche une référence après enregistrement dans Firestore. Le relais peut ensuite prendre quelques minutes. **Mes demandes** indique quand Google a accepté la transmission. Phoenix LTS confirme le trajet séparément. Le compte Google grand public dispose actuellement d’un quota de 100 destinataires par jour dans Apps Script, partagé avec ses autres scripts. Les demandes en attente sont conservées lorsque le quota est épuisé.
+
+Le suivi est lié à l’identité anonyme Firebase de cet appareil. Les données de réservation se trouvent dans `googleMailAccounts/{uid}/googleMailRequests`. Si une demande reste en état `SENDING` après plusieurs déclenchements, vérifier la boîte de réception avant tout nouvel envoi manuel. Les demandes d’effacement sont dans `googleMailAccounts/{uid}/privacy/deletion`. Les itinéraires s’ouvrent dans Google Maps. Les étapes Firebase Functions et SMTP ci-dessous concernent le mode activé avec `-PnavetteGoogleMail=false`.
+
 ## 1. Firebase et réservations
 
 Utiliser le projet Firebase de Phoenix LTS. Pour l’APK de test `com.phoenix.navette28`, placer sa configuration `google-services.json` dans `app/`. Pour la version Google Play, inscrire `com.phoenix.navette` dans Firebase et placer sa configuration dans `app/src/release/google-services.json`. Les deux fichiers restent hors Git. Activer Authentication anonyme, Cloud Firestore et App Check avec Play Integrity. Pour l’essai sur appareil virtuel, utiliser un projet de test et un fournisseur App Check de débogage limité à cette compilation, ou passer par le test interne Google Play avec les empreintes requises.
@@ -60,13 +72,13 @@ Les suggestions et le calcul d’itinéraire transmettent à Google Maps les adr
 
 ### Destinataires, conservation et transferts
 
-Les demandes sont accessibles aux personnes habilitées de Phoenix LTS. Les services configurés peuvent inclure Firebase Authentication, App Check, Cloud Firestore, Cloud Functions, Firebase Cloud Messaging, Google Maps Platform et le fournisseur d’envoi d’e-mails de réservation. Les données communiquées à chaque prestataire dépendent de la fonctionnalité utilisée.
+Les demandes sont accessibles aux personnes habilitées de Phoenix LTS. Les services configurés peuvent inclure Firebase Authentication, App Check, Cloud Firestore, Google Apps Script, Cloud Functions, Firebase Cloud Messaging, Google Maps Platform et le fournisseur d’envoi d’e-mails de réservation. Les données communiquées à chaque prestataire dépendent de la fonctionnalité utilisée.
 
 Phoenix LTS doit fixer les durées ou critères de conservation pour les devis, les demandes, l’historique, les e-mails, les journaux techniques et les demandes de droits. Confirmer les régions et les conditions contractuelles des prestataires, les transferts éventuels hors Espace économique européen ainsi que les garanties et modalités d’accès à ces garanties.
 
 ### Sécurité et droits
 
-Les échanges utilisent HTTPS. L’application accède aux demandes au travers de fonctions sécurisées et les règles Firestore bloquent l’accès direct par les clients. Le suivi est limité à l’identité qui a envoyé la demande. L’application exclut ses données des sauvegardes et des transferts Android.
+Les échanges utilisent HTTPS. Les règles Firestore et les fonctions limitent le suivi à l’identité qui a envoyé la demande. L’application exclut ses données des sauvegardes et des transferts Android.
 
 Les personnes peuvent demander l’accès, la rectification, l’effacement ou la limitation du traitement et, selon la base applicable, exercer leurs droits d’opposition, de portabilité ou de retrait du consentement. Elles peuvent adresser une réclamation à la CNIL. Une demande de suppression envoyée dans l’application est transmise à Phoenix LTS pour traitement. Phoenix LTS doit confirmer la procédure de vérification, de suppression et les exceptions légales applicables.
 

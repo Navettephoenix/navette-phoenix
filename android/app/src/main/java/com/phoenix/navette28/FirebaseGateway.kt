@@ -27,6 +27,10 @@ class FirebaseGateway private constructor() {
         }.onSuccessTask { result -> Tasks.forResult(result.data) }
     }
 
+    fun userId(): Task<String> = authenticated().onSuccessTask {
+        Tasks.forResult(checkNotNull(FirebaseAuth.getInstance().currentUser).uid)
+    }
+
     @Synchronized
     private fun authenticated(): Task<Unit> {
         val auth = FirebaseAuth.getInstance()

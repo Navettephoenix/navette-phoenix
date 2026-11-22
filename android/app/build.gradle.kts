@@ -39,6 +39,8 @@ android {
         manifestPlaceholders["mapsAndroidKey"] = mapsKey.get()
         buildConfigField("boolean", "HAS_MAPS", mapsKey.get().isNotBlank().toString())
         buildConfigField("String", "BOOKING_EMAIL", JsonOutput.toJson(contactEmail.get()))
+        buildConfigField("boolean", "GOOGLE_MAIL", providers.gradleProperty("navetteGoogleMail")
+            .orElse("true").get().toBoolean().toString())
         buildConfigField("String", "PRIVACY_URL", JsonOutput.toJson(policyUrl.get()))
     }
 
@@ -128,6 +130,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-functions")
+    implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
     debugImplementation("com.google.firebase:firebase-appcheck-debug")

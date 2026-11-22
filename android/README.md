@@ -26,10 +26,10 @@ Depuis le terminal Windows d’Android Studio, `./gradlew.bat :app:assembleDebug
 ## Fonctionnement
 
 - L’accueil donne accès à la réservation, aux devis, aux destinations, au suivi, aux contacts et aux informations de confidentialité.
-- Android gère la saisie, le récapitulatif et l’historique. Les suggestions d’adresse et le calcul de l’itinéraire passent par les fonctions serveur. Le prix reste à confirmer par Phoenix LTS.
-- Firebase Auth identifie l’appareil de manière anonyme. App Check avec Play Integrity protège les fonctions. Les règles Firestore ferment l’accès direct aux clients. Les fonctions limitent la lecture à l’identité qui a créé la demande.
-- La transaction Firestore utilise un identifiant d’envoi stable pour reconnaître la même demande après une coupure réseau. Après enregistrement, la fonction d’e-mail adresse une notification à la boîte de réservation configurée par Phoenix LTS. Le transporteur confirme le trajet ultérieurement.
-- Les notifications FCM sont facultatives. Elles signalent un changement de statut et invitent à consulter **Mes demandes**. L’application ne demande pas l’accès à la position du téléphone.
+- Android gère la saisie, le récapitulatif et l’historique. Les itinéraires s’ouvrent dans Google Maps par défaut. Le prix reste à confirmer par Phoenix LTS.
+- La V20 utilise Firestore Spark et Google Apps Script par défaut pour transmettre les demandes à la boîte de réservation. Les étapes d’activation figurent dans [MISE-EN-SERVICE.md](MISE-EN-SERVICE.md#envoi-via-google-sans-facturation).
+- Firebase Auth identifie l’appareil de manière anonyme. Les règles Firestore réservent l’accès à chaque demande à son propriétaire. La transaction conserve le même identifiant d’envoi en cas de coupure réseau. Le transporteur confirme le trajet ultérieurement.
+- Le mode Firebase Functions propose des suggestions d’adresse, un calcul d’itinéraire et des notifications FCM facultatives. L’application ne demande pas l’accès à la position du téléphone.
 - Les listes communales sont intégrées dans `app/src/main/assets/communes.csv` et proviennent des listes Insee. Le logo est celui fourni dans la version 1.19.
 
 [Forêts du Perche · Insee](https://www.insee.fr/fr/metadonnees/geographie/intercommunalite/200069912-les-forets-du-perche) · [Terres de Perche · Insee](https://www.insee.fr/fr/metadonnees/geographie/intercommunalite/200070167-terres-de-perche)
@@ -38,6 +38,7 @@ Depuis le terminal Windows d’Android Studio, `./gradlew.bat :app:assembleDebug
 
 - Android. Exécuter `./gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` depuis le dossier Android.
 - Fonctions. Dans `firebase/functions`, exécuter `npm ci` puis `npm test` avec Node.js 22.
+- Relais Google. Depuis le dossier Android, exécuter `node --test google-apps-script/relay.test.mjs` avec Node.js 22.
 - Firestore. Dans `firebase`, exécuter `firebase emulators:exec --only firestore --project demo-navette-phoenix "npm --prefix functions run test:emulator"`. Les tests utilisent des données fictives et un projet de démonstration local.
 
 ## Bilan du 22 novembre 2026

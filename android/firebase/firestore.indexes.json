@@ -7,6 +7,14 @@
         {"fieldPath": "uid", "order": "ASCENDING"},
         {"fieldPath": "createdAt", "order": "DESCENDING"}
       ]
+    },
+    {
+      "collectionGroup": "googleMailRequests",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {"fieldPath": "mailStatus", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "ASCENDING"}
+      ]
     }
   ],
   "fieldOverrides": []

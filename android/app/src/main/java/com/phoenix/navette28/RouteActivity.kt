@@ -38,7 +38,7 @@ class RouteActivity : AppCompatActivity() {
         val status = content.label("Calcul de l’itinéraire…", 15f, Palette.muted)
         content.space(9)
         val gateway = FirebaseGateway.get()
-        if (!gateway.available) {
+        if (!gateway.available || BuildConfig.GOOGLE_MAIL) {
             status.text = "Utilisez Google Maps pour afficher le trajet, la distance et la durée."
             return
         }

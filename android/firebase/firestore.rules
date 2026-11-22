@@ -1,7 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Le client passe par les fonctions avec contrôle du propriétaire.
-    match /{document=**} { allow read, write: if false; }
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function requestId(value) {
+      return value is string && value.matches('[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}');
+    }
+
+    function text(value, minimum, maximum) {
+      return value is string && value.size() >= minimum && value.size() <= maximum;
+    }
+
+    function validBooking(data, id) {
+      return data.keys().hasOnly([
+        'requestId', 'service', 'departure', 'arrival', 'date', 'time', 'returnDate', 'returnTime',
+        'passengers', 'luggage', 'name', 'phone', 'email', 'needs', 'notes', 'consent', 'mailStatus', 'createdAt'
+      ])
+        && data.requestId == id && (data['service'] == 'NAVETTE' || data['service'] == 'DEVIS')
+        && text(data.departure, 3, 250) && text(data.arrival, 3, 250) && data.departure != data.arrival
+        && data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && data.time.matches('[0-9]{2}:[0-9]{2}')
+        && ((data.returnDate == '' && data.returnTime == '')
+          || (data.returnDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && data.returnTime.matches('[0-9]{2}:[0-9]{2}')))
+        && data.passengers is int && data.passengers >= 1 && data.passengers <= 4
+        && data.luggage is int && data.luggage >= 0 && data.luggage <= 16
+        && text(data.name, 2, 100) && text(data.phone, 7, 24) && text(data.email, 5, 120)
+        && text(data.needs, 0, 300) && text(data.notes, 0, 500) && data.consent == true
+        && data.mailStatus == 'PENDING' && data.createdAt == request.time;
+    }
+
+    match /googleMailAccounts/{uid} {
+      function validAccountWrite() {
+        let data = request.resource.data;
+        return owner(uid) && data.keys().hasOnly(['lastRequestId', 'lastRequestAt'])
+          && requestId(data.lastRequestId) && data.lastRequestAt == request.time
+          && getAfter(/databases/$(database)/documents/googleMailAccounts/$(uid)/googleMailRequests/$(data.lastRequestId)).data.createdAt == request.time;
+      }
+
+      allow create: if validAccountWrite();
+      allow update: if validAccountWrite()
+        && request.time >= resource.data.lastRequestAt + duration.value(1, 'm');
+
+      match /googleMailRequests/{id} {
+        allow get: if owner(uid);
+        allow list: if owner(uid) && request.query.limit <= 30;
+        allow create: if owner(uid) && requestId(id) && validBooking(request.resource.data, id)
+          && existsAfter(/databases/$(database)/documents/googleMailAccounts/$(uid))
+          && getAfter(/databases/$(database)/documents/googleMailAccounts/$(uid)).data.lastRequestAt == request.time
+          && getAfter(/databases/$(database)/documents/googleMailAccounts/$(uid)).data.lastRequestId == id;
+      }
+
+      match /privacy/deletion {
+        allow get: if owner(uid);
+        allow create: if owner(uid) && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time;
+      }
+    }
   }
 }
