@@ -47,6 +47,7 @@ Depuis le terminal Windows d’Android Studio, `./gradlew.bat :app:assembleDebug
 | APK de test | Compilé, signature de débogage et alignement ZIP 16 Ko vérifiés. 19,1 Mo. |
 | Android | Sept tests unitaires et deux tests d’interface simulée sur API 24 réussis. Analyse Android Lint sans erreur, 18 avertissements. |
 | Serveur | Quatre tests unitaires et trois tests Firestore locaux réussis. |
+| E-mail | Un essai SMTP local a vérifié le contenu, le refus temporaire, la reprise et la réception d’un seul message pour la même demande fictive. |
 | Configuration Google Play | Manifeste `com.phoenix.navette`, minimum API 24, cible API 37. Code 20 provisoire. |
 | Territoire | Les 37 codes et noms de communes correspondent au référentiel officiel des deux intercommunalités. |
 | Reste à vérifier | Rendu réel sur Android, configuration Firebase et Maps de production, réception de l’e-mail, certificat d’importation local et validation Play Console. |
