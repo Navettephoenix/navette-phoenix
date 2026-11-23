@@ -217,7 +217,9 @@ class MainActivityTest {
         assertNull(transmissionWarning("CONFIRMED", old, now))
         assertNull(transmissionWarning("PENDING", null, now))
         assertNotNull(transmissionWarning("PENDING", old, now))
-        val ambiguous = transmissionWarning("SENDING", old, now)!!
+        assertNull(transmissionWarning("SENDING", old, now))
+        assertNull(transmissionWarning("SENDING", old, now, now - 10 * 60 * 1000L))
+        val ambiguous = transmissionWarning("SENDING", old, now, old)!!
         assertTrue(ambiguous.contains("peut-être été envoyé"))
         assertTrue(ambiguous.contains("avant toute nouvelle demande"))
     }
