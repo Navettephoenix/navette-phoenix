@@ -27,6 +27,14 @@ internal fun statusLabel(status: String?): String = when (status) {
     else -> "Statut à vérifier auprès de Phoenix LTS"
 }
 
+/** Distingue un accusé de transmission d'une réservation réellement confirmée. */
+internal fun statusTone(status: String?): Int = when (status) {
+    "CONFIRMED" -> 0xFF17623B.toInt()
+    "DECLINED", "CANCELLED", "INVALID" -> Palette.error
+    "PENDING", "SENDING", "SENT", "RECEIVED" -> Palette.sun
+    else -> Palette.muted
+}
+
 internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List<RequestSummary>>)?) {
     val state = label("", 16f, Palette.muted).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
     val reference = latest?.let {
@@ -80,8 +88,9 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                     card.label("Tarif sur devis", 16f, Palette.sun, bold = true)
                 }
                 card.space(6)
-                card.label(statusLabel(entry.status), 15f, Palette.sun, bold = true)
-                card.label(entry.reference, 14f, Palette.muted).setTextIsSelectable(true)
+                card.label(statusLabel(entry.status), 16f, statusTone(entry.status), bold = true)
+                card.space(5)
+                card.label("Référence · ${entry.reference}", 15f, Palette.muted).setTextIsSelectable(true)
                 cards.space(10)
             }
         }
