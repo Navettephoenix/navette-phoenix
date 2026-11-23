@@ -205,8 +205,8 @@ class MainActivityTest {
             next = Tasks.forResult(listOf(first.copy(status = "SENT")))
             content.button("Actualiser").performClick()
             shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(content.labels().contains(statusLabel("SENT")))
-            assertFalse(content.labels().contains(statusLabel("PENDING")))
+            assertTrue(content.labels().contains(statusShortLabel("SENT")))
+            assertFalse(content.labels().contains(statusShortLabel("PENDING")))
         }
     }
 
@@ -231,6 +231,9 @@ class MainActivityTest {
     }
 
     private fun View.labels() = descendants().filterIsInstance<TextView>().map { it.text.toString() }.toSet()
+
+    private fun View.buttons(label: String) =
+        descendants().filterIsInstance<MaterialButton>().filter { it.text.toString() == label }.toList()
 
     private fun View.button(label: String) =
         descendants().filterIsInstance<MaterialButton>().single { it.text.toString() == label }
