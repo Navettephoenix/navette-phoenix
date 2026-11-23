@@ -46,6 +46,7 @@ function relayGoogleMailRequests() {
       try {
         MailApp.sendEmail({
           to: recipient, subject: message.subject, body: message.body,
+          htmlBody: message.htmlBody,
           replyTo: message.replyTo, name: 'Navette Phoenix 28'
         });
       } catch (_) {
@@ -135,8 +136,57 @@ function bookingMessage_(document, id) {
       text('needs') ? 'Besoins particuliers : ' + text('needs') : '',
       text('notes') ? 'Commentaire : ' + text('notes') : '',
       'Cette demande attend la validation de Phoenix LTS.'
-    ].filter(Boolean).join('\n')
+    ].filter(Boolean).join('\n'),
+    htmlBody: bookingHtml_(title, reference, {
+      departure, arrival, date, time, returnDate, returnTime, passengers, luggage,
+      pricing, proposed, name: text('name'), phone: text('phone'), email,
+      needs: text('needs'), notes: text('notes')
+    })
   };
+}
+
+
+/** Présentation HTML lisible dans Gmail, avec version texte conservée. */
+function bookingHtml_(title, reference, b) {
+  const esc = value => String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const item = (label, value) => '<tr><td style="padding:10px 12px;color:#75665e;vertical-align:top;width:125px;font-size:13px">'
+    + esc(label) + '</td><td style="padding:10px 12px;color:#241b17;font-weight:600;font-size:14px;overflow-wrap:anywhere">'
+    + esc(value) + '</td></tr>';
+  const section = (title, rows) => '<section style="margin:18px 0;background:#fff;border:1px solid #eadbd2;border-radius:14px;overflow:hidden">'
+    + '<h2 style="margin:0;padding:15px 16px 8px;font-size:16px;color:#241b17">' + esc(title) + '</h2>'
+    + '<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">'
+    + rows.join('') + '</table></section>';
+  const price = b.proposed ? (b.pricing
+    ? b.pricing.total + ' € au total (estimation, zone ' + b.pricing.zone + ')'
+    : 'Sur devis') : 'À confirmer';
+  const route = section('Trajet', [
+    item('Départ', b.departure), item('Arrivée', b.arrival),
+    item('Aller', b.date + ' à ' + b.time + ' (heure de Paris)'),
+    ...(b.returnDate ? [item('Retour', b.returnDate + ' à ' + b.returnTime + ' (heure de Paris)')] : [])
+  ]);
+  const passengers = section('Passagers et tarif', [
+    item('Passagers', b.passengers), item('Bagages', b.luggage), item('Tarif', price)
+  ]);
+  const contact = section('Contact', [
+    item('Nom', b.name), item('Téléphone', b.phone), item('E-mail', b.email),
+    ...(b.needs ? [item('Besoins', b.needs)] : []),
+    ...(b.notes ? [item('Commentaires', b.notes)] : [])
+  ]);
+  return '<!doctype html><html lang="fr"><body style="margin:0;padding:28px 12px;background:#f8f4f0;font-family:Arial,Helvetica,sans-serif">'
+    + '<main style="max-width:620px;margin:auto">'
+    + '<header style="padding:24px;background:#4b281d;border-radius:18px 18px 0 0;color:white">'
+    + '<div style="font-size:13px;letter-spacing:1.5px;color:#ffd5c0">PHOENIX LTS</div>'
+    + '<h1 style="margin:8px 0;font-size:25px">Navette Phoenix 28</h1>'
+    + '<div style="font-size:15px">' + esc(title) + '</div></header>'
+    + '<div style="background:#fffaf6;padding:20px;border:1px solid #eadbd2;border-radius:0 0 18px 18px">'
+    + '<div style="padding:12px 14px;border-radius:10px;background:#fff0e8;color:#9d3212;font-weight:700">'
+    + 'À TRAITER · RÉSERVATION NON CONFIRMÉE</div>'
+    + '<p style="color:#51433c;font-size:14px">Référence : <strong>' + esc(reference) + '</strong></p>'
+    + route + passengers + contact
+    + '<p style="font-size:13px;line-height:1.6;color:#675950">Le tarif est indicatif. La demande nécessite une validation par le service de réservation.</p>'
+    + '</div></main></body></html>';
 }
 
 function parisTime_(date, time) {
