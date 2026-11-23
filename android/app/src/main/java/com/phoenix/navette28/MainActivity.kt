@@ -345,7 +345,7 @@ class MainActivity : AppCompatActivity() {
         price.space(7)
         val totalLabel = price.label("", 25f, Palette.sun, bold = true)
         price.space(6)
-        price.label("Tarif estimé, confirmé par le service de réservation.", 13f, Palette.muted)
+        price.label("Prix indicatif. Le montant final sera confirmé avant la réservation.", 15f, Palette.muted)
         val quoteButton = price.action("Demander un devis") {
             service = Service.DEVIS
             val ready = booking().validateTrip(returnRequested = roundTrip) == null
@@ -512,7 +512,7 @@ class MainActivity : AppCompatActivity() {
         val extra = column.panel("Informations utiles au trajet")
         bind(extra, "Besoins particuliers (facultatif)", "needs", limit = 300, multiline = true)
         bind(extra, "Commentaires (facultatif)", "notes", limit = 500, multiline = true)
-        extra.label("Indiquez seulement les détails nécessaires à votre prise en charge.", 13f, Palette.muted)
+        extra.label("Précisez uniquement les informations utiles à votre trajet.", 15f, Palette.muted)
         column.space(12)
         val agreement = MaterialCheckBox(this).apply {
             setText(R.string.consent_text)
@@ -574,7 +574,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             trip.label("Tarif sur devis", 20f, Palette.sun, bold = true)
         }
-        trip.label("Tarif estimé, confirmé par le service de réservation.", 14f, Palette.muted)
+        trip.label("Prix indicatif : votre trajet reste à confirmer par notre équipe.", 15f, Palette.muted)
         trip.navigationLink("Modifier le trajet") { editFromReview(Screen.TRIP) }.isEnabled = !busy
         column.space(10)
         val details = column.panel("Contact")
@@ -669,7 +669,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun receipt() {
         column.space(10)
-        column.label("✓  Demande enregistrée", 27f, bold = true, heading = true)
+        column.label("Demande enregistrée", 27f, bold = true, heading = true)
         column.space(8)
         column.label("Merci ! Votre demande a bien été enregistrée. Retrouvez son suivi à tout moment.", 16f, Palette.muted)
         column.space(18)
@@ -680,7 +680,7 @@ class MainActivity : AppCompatActivity() {
         receipt.space(14)
         receipt.label("Suivi de votre demande", 18f, bold = true)
         receipt.space(10)
-        receipt.label("✓  1. Demande enregistrée", 16f, bold = true)
+        receipt.label("✓  1. Demande enregistrée", 17f, bold = true)
         receipt.space(8)
         val status = storage.getString("latestStatus", null)
         if (status == "PENDING") {
@@ -688,7 +688,7 @@ class MainActivity : AppCompatActivity() {
             receipt.space(8)
             receipt.label("3. Confirmation par notre équipe", 15f, Palette.muted)
             receipt.space(14)
-            receipt.label("Votre demande est enregistrée. Son envoi au service de réservation est en attente. Consultez « Mes demandes » pour suivre sa transmission.", 15f, Palette.muted)
+            receipt.label("Votre demande est bien enregistrée. La transmission peut prendre quelques minutes. Consultez « Mes demandes » pour connaître son statut actuel.", 16f, Palette.muted)
         } else {
             receipt.label("✓  2. " + statusLabel(status), 16f, Palette.sun, bold = true)
             receipt.space(8)
