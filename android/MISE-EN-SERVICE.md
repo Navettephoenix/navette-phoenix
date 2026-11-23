@@ -23,7 +23,7 @@ Le script `android/google-apps-script/Code.gs` contient un e-mail HTML + texte �
    .\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
    ```
    Les simulations contrôlent notamment l'absence de doublons après panne Gmail ou Firestore, les quotas et le contenu de l'accusé client.
-2. Dans le dossier `android/firebase/`, faire déployer par le responsable Firebase les **index** ajoutés au dépôt, notamment `customerReceiptStatus` :
+2. Dans le dossier `android/firebase/`, déployer les **index** du dépôt, notamment le réglage **monochamp** `customerReceiptStatus` en portée `COLLECTION_GROUP`, qui se configure dans `fieldOverrides` et non dans `indexes` (correctif après l'erreur Firebase HTTP 400 du 23/11/2026) :
    ```powershell
    cd .\firebase
    firebase deploy --only firestore:indexes --project navette-phoenix
