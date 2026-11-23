@@ -13,10 +13,39 @@ service cloud.firestore {
       return value is string && value.size() >= minimum && value.size() <= maximum;
     }
 
+    function validPrice(data) {
+      return !data.keys().hasAny(['pricingType']) || (
+        data.keys().hasAll([
+          'departureCommune', 'arrivalCommune', 'departureDetail', 'arrivalDetail',
+          'pricingType', 'pricingSector', 'pricingZone', 'pricePerPassenger', 'priceOneWay', 'priceTotal'
+        ])
+        && text(data.departureCommune, 0, 120) && text(data.arrivalCommune, 0, 120)
+        && text(data.departureDetail, 0, 150) && text(data.arrivalDetail, 0, 150)
+        && data.pricingZone is int && data.pricePerPassenger is int
+        && data.priceOneWay is int && data.priceTotal is int
+        && ((
+          data.pricingType == 'QUOTE' && data.pricingSector == ''
+          && data.pricingZone == 0 && data.pricePerPassenger == 0
+          && data.priceOneWay == 0 && data.priceTotal == 0
+        ) || (
+          data.pricingType == 'FIXED'
+          && (data.pricingSector == 'FORETS_DU_PERCHE' || data.pricingSector == 'TERRES_DE_PERCHE')
+          && data.pricingZone >= 1 && data.pricingZone <= 4
+          && data.pricePerPassenger == (
+            data.pricingZone == 1 ? 5 : data.pricingZone == 2 ? 6 : data.pricingZone == 3 ? 8 : 10
+          )
+          && data.priceOneWay == data.pricePerPassenger * data.passengers
+          && data.priceTotal == data.priceOneWay * (data.returnDate == '' ? 1 : 2)
+        ))
+      );
+    }
+
     function validBooking(data, id) {
       return data.keys().hasOnly([
         'requestId', 'service', 'departure', 'arrival', 'date', 'time', 'returnDate', 'returnTime',
-        'passengers', 'luggage', 'name', 'phone', 'email', 'needs', 'notes', 'consent', 'mailStatus', 'createdAt'
+        'passengers', 'luggage', 'name', 'phone', 'email', 'needs', 'notes', 'consent', 'mailStatus', 'createdAt',
+        'departureCommune', 'arrivalCommune', 'departureDetail', 'arrivalDetail',
+        'pricingType', 'pricingSector', 'pricingZone', 'pricePerPassenger', 'priceOneWay', 'priceTotal'
       ])
         && data.requestId == id && (data['service'] == 'NAVETTE' || data['service'] == 'DEVIS')
         && text(data.departure, 3, 250) && text(data.arrival, 3, 250) && data.departure != data.arrival
@@ -28,6 +57,7 @@ service cloud.firestore {
         && data.luggage is int && data.luggage >= 0 && data.luggage <= 16
         && text(data.name, 2, 100) && text(data.phone, 7, 24) && text(data.email, 5, 120)
         && text(data.needs, 0, 300) && text(data.notes, 0, 500) && data.consent == true
+        && validPrice(data)
         && data.mailStatus == 'PENDING' && data.createdAt == request.time;
     }
 
