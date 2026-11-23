@@ -9,13 +9,16 @@ import android.text.InputFilter
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
-import android.widget.EditText
+import android.view.inputmethod.EditorInfo
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 
 object Palette {
     const val paper = 0xFFFAF6F2.toInt()
@@ -24,6 +27,7 @@ object Palette {
     const val line = 0xFFE5D6CC.toInt()
     const val sun = 0xFF9B2A0D.toInt()
     const val mist = 0xFFFFE9DC.toInt()
+    const val error = 0xFF9D2119.toInt()
 }
 
 fun Context.dp(dp: Int) = (dp * resources.displayMetrics.density + .5f).toInt()
@@ -64,6 +68,24 @@ fun LinearLayout.panel(title: String? = null): LinearLayout = context.column().a
     }
 }
 
+fun LinearLayout.stepHeader(title: String, step: Int, section: String) {
+    label(context.getString(R.string.booking_step, step, section), 14f, Palette.sun, bold = true)
+    space(6)
+    val track = LinearLayout(context).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
+    repeat(3) { index ->
+        val segment = View(context).apply {
+            background = context.surface(if (index < step) Palette.sun else Palette.line, 2)
+        }
+        track.addView(segment, LinearLayout.LayoutParams(0, context.dp(4), 1f).apply {
+            if (index > 0) marginStart = context.dp(4)
+        })
+    }
+    addView(track, -1, -2)
+    space(14)
+    label(title, 28f, bold = true, heading = true)
+    space(14)
+}
+
 fun LinearLayout.action(
     title: String, primary: Boolean = false, iconRes: Int = 0, call: () -> Unit,
 ): MaterialButton =
@@ -96,10 +118,71 @@ fun LinearLayout.action(
         this@action.addView(this, -1, -2)
     }
 
+fun LinearLayout.navigationLink(title: String, iconRes: Int = 0, call: () -> Unit): MaterialButton =
+    action(title, iconRes = iconRes, call = call).apply {
+        backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+        strokeWidth = 0
+        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        iconGravity = MaterialButton.ICON_GRAVITY_START
+        setPadding(context.dp(8), context.dp(10), context.dp(8), context.dp(10))
+        minHeight = context.dp(48)
+    }
+
+fun LinearLayout.backLink(call: () -> Unit) =
+    navigationLink(context.getString(R.string.back), R.drawable.ic_back, call).apply {
+        layoutParams = LinearLayout.LayoutParams(-2, -2)
+    }
+
+fun LinearLayout.rule() {
+    addView(View(context).apply { setBackgroundColor(Palette.line) }, -1, context.dp(1))
+}
+
+fun LinearLayout.quantity(
+    countText: Int, removeText: Int, addText: Int, range: IntRange, initial: Int,
+    change: (Int) -> Unit,
+): LinearLayout {
+    val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
+    addView(row, -1, -2)
+    val count = row.label("", 17f, bold = true).apply {
+        layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+    }
+    fun button(symbol: String, description: Int) = MaterialButton(context).apply {
+        text = symbol
+        contentDescription = context.getString(description)
+        textSize = 21f
+        minWidth = context.dp(48)
+        minHeight = context.dp(48)
+        insetTop = 0
+        insetBottom = 0
+        cornerRadius = context.dp(14)
+        setPadding(context.dp(6), 0, context.dp(6), 0)
+        val states = arrayOf(intArrayOf(android.R.attr.state_enabled), intArrayOf())
+        setTextColor(ColorStateList(states, intArrayOf(Palette.sun, Palette.muted)))
+        backgroundTintList = ColorStateList(states, intArrayOf(Palette.mist, Palette.paper))
+        row.addView(this, -2, -2)
+    }
+    val less = button("−", removeText)
+    val more = button("+", addText).apply {
+        layoutParams = (layoutParams as LinearLayout.LayoutParams).apply { marginStart = context.dp(6) }
+    }
+    var value = initial.coerceIn(range)
+    fun update() {
+        count.text = resources.getQuantityString(countText, value, value)
+        less.isEnabled = value > range.first
+        more.isEnabled = value < range.last
+        change(value)
+    }
+    less.setOnClickListener { if (value > range.first) { value--; update() } }
+    more.setOnClickListener { if (value < range.last) { value++; update() } }
+    update()
+    return row
+}
+
 fun LinearLayout.field(
     label: String, value: String, type: Int = InputType.TYPE_CLASS_TEXT,
-    limit: Int = 250, multiline: Boolean = false,
-): EditText {
+    limit: Int = 250, multiline: Boolean = false, suggestions: List<String> = emptyList(),
+): TextInputLayout {
     val layout = TextInputLayout(context).apply {
         hint = label
         boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
@@ -107,17 +190,27 @@ fun LinearLayout.field(
         setBoxCornerRadii(context.dp(12).toFloat(), context.dp(12).toFloat(),
             context.dp(12).toFloat(), context.dp(12).toFloat())
     }
-    val field = TextInputEditText(layout.context).apply {
+    val input = if (suggestions.isEmpty()) TextInputEditText(layout.context) else {
+        MaterialAutoCompleteTextView(layout.context).apply {
+            threshold = 2
+            setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, suggestions))
+        }
+    }
+    val field = input.apply {
         id = View.generateViewId()
         inputType = if (multiline) type or InputType.TYPE_TEXT_FLAG_MULTI_LINE else type
-        if (multiline) minLines = 2 else maxLines = 1
+        if (multiline) minLines = 2 else {
+            setSingleLine(true)
+            imeOptions = EditorInfo.IME_ACTION_NEXT
+        }
         filters = arrayOf(InputFilter.LengthFilter(limit))
-        setText(value)
+        if (this is AutoCompleteTextView) setText(value, false) else setText(value)
+        setPaddingRelative(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
         textSize = 16f
         minHeight = context.dp(56)
     }
     layout.addView(field, -1, -2)
     addView(layout, -1, -2)
     space(11)
-    return field
+    return layout
 }

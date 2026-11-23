@@ -43,12 +43,14 @@ internal object GoogleMailGateway {
             }
         }
 
-    fun list(): Task<List<Map<String, String>>> = FirebaseGateway.get().userId().onSuccessTask { uid ->
+    fun list(): Task<List<RequestSummary>> = FirebaseGateway.get().userId().onSuccessTask { uid ->
         database.collection("googleMailAccounts").document(uid).collection("googleMailRequests")
             .orderBy("createdAt", Query.Direction.DESCENDING).limit(30).get(Source.SERVER)
             .continueWith { task ->
                 task.result.documents.map { document ->
-                    mapOf("reference" to reference(document.id), "status" to document.getString("mailStatus").orEmpty())
+                    RequestSummary(reference(document.id), document.getString("mailStatus"),
+                        document.getString("service"), document.getString("departure"), document.getString("arrival"),
+                        document.getString("date"), document.getString("time"))
                 }
             }
     }

@@ -15,6 +15,7 @@ import com.google.firebase.messaging.RemoteMessage
 
 class ReservationMessaging : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
+        if (BuildConfig.GOOGLE_MAIL) return
         val prefs = preferences(this)
         if (!prefs.getBoolean("enabled", false)) return
         prefs.edit { putString("pending", token) }
@@ -52,6 +53,7 @@ class ReservationMessaging : FirebaseMessagingService() {
         fun markEnabled(context: Context) = preferences(context).edit { putBoolean("enabled", true) }
 
         fun syncPendingToken(context: Context) {
+            if (BuildConfig.GOOGLE_MAIL) return
             val prefs = preferences(context)
             val token = prefs.getString("pending", null) ?: return
             val gateway = FirebaseGateway.get()

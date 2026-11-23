@@ -1,0 +1,29 @@
+<resources>
+    <string name="back">Retour</string>
+    <string name="booking_step">Étape %1$d sur 3 · %2$s</string>
+    <string name="selected_value">%1$s · %2$s</string>
+    <string name="route_open_maps">Ouvrez Google Maps pour consulter la distance et la durée du trajet.</string>
+    <string name="route_unavailable">Le calcul est indisponible. Vous pouvez continuer dans Google Maps.</string>
+    <string name="route_estimate">%1$s km · environ %2$d min</string>
+    <string name="round_trip">Aller-retour</string>
+    <string name="consent_text">J’ai lu les informations sur l’utilisation de mes données.</string>
+    <string name="notify_status">Recevoir une notification quand le statut change</string>
+    <string name="add_passenger">Ajouter un passager</string>
+    <string name="remove_passenger">Retirer un passager</string>
+    <string name="add_bag">Ajouter un bagage</string>
+    <string name="remove_bag">Retirer un bagage</string>
+    <string name="latest_reference">Dernière référence sur cet appareil · %1$s</string>
+    <string name="history_loading">Recherche de vos demandes…</string>
+    <string name="history_unavailable">Le suivi en ligne est indisponible sur cet appareil.</string>
+    <string name="history_retry">Actualisation impossible. Vérifiez votre connexion, puis réessayez.</string>
+    <string name="history_empty">Aucune demande dans le suivi de cet appareil.</string>
+    <string name="history_recent">Vos dernières demandes sur cet appareil</string>
+    <plurals name="passengers">
+        <item quantity="one">%d passager</item>
+        <item quantity="other">%d passagers</item>
+    </plurals>
+    <plurals name="bags">
+        <item quantity="one">%d bagage</item>
+        <item quantity="other">%d bagages</item>
+    </plurals>
+</resources>

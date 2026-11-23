@@ -11,6 +11,8 @@ enum class Service(val label: String) {
     NAVETTE("Réserver une navette"), DEVIS("Demander un devis")
 }
 
+data class BookingIssue(val field: String, val message: String)
+
 data class Booking(
     val service: Service,
     val departure: String,
@@ -28,38 +30,56 @@ data class Booking(
     val notes: String,
     val consent: Boolean,
 ) {
-    fun validateTrip(now: LocalDateTime = LocalDateTime.now(PARIS)): String? {
-        if (departure.length !in 3..250 || arrival.length !in 3..250) {
-            return "Indiquez une adresse de départ et une adresse d’arrivée."
+    fun validateAddresses(): BookingIssue? {
+        if (departure.length !in 3..250) return BookingIssue("departure", "Indiquez votre adresse de départ.")
+        if (arrival.length !in 3..250) return BookingIssue("arrival", "Indiquez votre adresse d’arrivée.")
+        if (departure.equals(arrival, ignoreCase = true)) {
+            return BookingIssue("arrival", "Choisissez une arrivée différente du départ.")
         }
-        if (departure.equals(arrival, ignoreCase = true)) return "Choisissez deux adresses différentes."
-        val pickup = parse(date, time)
-        if (pickup == null || !pickup.isAfter(now) ||
-            PARIS.rules.getValidOffsets(pickup).size != 1) {
-            return "Choisissez une date et une heure de départ valides, dans le futur."
-        }
-        if (returnDate.isNotEmpty() || returnTime.isNotEmpty()) {
-            val back = parse(returnDate, returnTime)
-            if (back == null || !back.isAfter(pickup) ||
-                PARIS.rules.getValidOffsets(back).size != 1) {
-                return "Le créneau de retour doit être valide et postérieur à l’aller."
-            }
-        }
-        if (passengers !in 1..4) return "Indiquez entre 1 et 4 passagers."
-        if (luggage !in 0..16) return "Indiquez entre 0 et 16 bagages."
         return null
     }
 
-    fun validateContact(): String? {
-        if (name.length !in 2..100) return "Saisissez votre nom et votre prénom."
+    fun validateTrip(
+        now: LocalDateTime = LocalDateTime.now(PARIS),
+        returnRequested: Boolean = returnDate.isNotEmpty() || returnTime.isNotEmpty(),
+    ): BookingIssue? {
+        validateAddresses()?.let { return it }
+        if (date.isBlank()) return BookingIssue("date", "Choisissez votre date de départ.")
+        if (time.isBlank()) return BookingIssue("time", "Choisissez votre heure de départ.")
+        val pickup = parse(date, time)
+        if (pickup == null || pickup.toLocalDate().isBefore(now.toLocalDate())) {
+            return BookingIssue("date", "Choisissez une date de départ valide, aujourd’hui ou plus tard.")
+        }
+        if (!pickup.isAfter(now) || PARIS.rules.getValidOffsets(pickup).size != 1) {
+            return BookingIssue("time", "Choisissez une heure de départ valide et à venir (heure de Paris).")
+        }
+        if (returnRequested) {
+            if (returnDate.isBlank()) return BookingIssue("returnDate", "Choisissez votre date de retour.")
+            if (returnTime.isBlank()) return BookingIssue("returnTime", "Choisissez votre heure de retour.")
+            val back = parse(returnDate, returnTime)
+            if (back == null || back.toLocalDate().isBefore(pickup.toLocalDate())) {
+                return BookingIssue("returnDate", "Choisissez un retour le jour de l’aller ou plus tard.")
+            }
+            if (!back.isAfter(pickup) || PARIS.rules.getValidOffsets(back).size != 1) {
+                return BookingIssue("returnTime", "Choisissez une heure de retour valide, après l’aller.")
+            }
+        }
+        if (passengers !in 1..4) return BookingIssue("passengers", "Indiquez entre 1 et 4 passagers.")
+        if (luggage !in 0..16) return BookingIssue("luggage", "Indiquez entre 0 et 16 bagages.")
+        return null
+    }
+
+    fun validateContact(): BookingIssue? {
+        if (name.length !in 2..100) return BookingIssue("name", "Saisissez votre nom et votre prénom.")
         if (!phone.matches(Regex("[+0-9 ().-]{7,24}")) || phone.count(Char::isDigit) !in 8..15) {
-            return "Vérifiez le numéro de téléphone."
+            return BookingIssue("phone", "Vérifiez votre numéro de téléphone, indicatif compris si nécessaire.")
         }
-        if (email.length !in 5..120 || !email.matches(Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))) {
-            return "Vérifiez l’adresse e-mail."
+        if (email.length !in 5..120 || !email.matches(Regex("[^@\\s,;<>]+@[^@\\s,;<>]+\\.[^@\\s,;<>]+"))) {
+            return BookingIssue("email", "Saisissez une adresse e-mail, par exemple nom@exemple.fr.")
         }
-        if (needs.length > 300 || notes.length > 500) return "Raccourcissez les informations facultatives."
-        if (!consent) return "Lisez les informations sur vos données, puis cochez la case."
+        if (needs.length > 300) return BookingIssue("needs", "Limitez les besoins particuliers à 300 caractères.")
+        if (notes.length > 500) return BookingIssue("notes", "Limitez le commentaire à 500 caractères.")
+        if (!consent) return BookingIssue("consent", "Lisez les informations sur vos données, puis cochez la case.")
         return null
     }
 

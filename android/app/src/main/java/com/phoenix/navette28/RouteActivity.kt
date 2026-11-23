@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -19,6 +20,13 @@ import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.text.NumberFormat
 import java.util.Locale
+
+internal fun directionsUri(from: String, to: String): Uri =
+    "https://www.google.com/maps/dir/".toUri().buildUpon()
+        .appendQueryParameter("api", "1")
+        .appendQueryParameter("origin", from)
+        .appendQueryParameter("destination", to)
+        .appendQueryParameter("travelmode", "driving").build()
 
 class RouteActivity : AppCompatActivity() {
     override fun onCreate(state: Bundle?) {
@@ -39,7 +47,7 @@ class RouteActivity : AppCompatActivity() {
         content.space(9)
         val gateway = FirebaseGateway.get()
         if (!gateway.available || BuildConfig.GOOGLE_MAIL) {
-            status.text = "Utilisez Google Maps pour afficher le trajet, la distance et la durée."
+            status.setText(R.string.route_open_maps)
             return
         }
         val fragment = if (BuildConfig.HAS_MAPS) {
@@ -57,13 +65,13 @@ class RouteActivity : AppCompatActivity() {
             val seconds = route?.get("durationSeconds") as? Number
             val points = polyline?.let { runCatching { decode(it) }.getOrNull() }.orEmpty()
             if (metres == null || seconds == null) {
-                status.text = "Le calcul est indisponible. Vous pouvez continuer dans Google Maps."
+                status.setText(R.string.route_unavailable)
                 return@addOnCompleteListener
             }
             val km = NumberFormat.getNumberInstance(Locale.FRANCE).apply { maximumFractionDigits = 1 }
                 .format(metres.toDouble() / 1000)
             val minutes = (seconds.toInt() + 59) / 60
-            status.text = "$km km · environ $minutes min"
+            status.text = getString(R.string.route_estimate, km, minutes)
             if (points.size < 2) return@addOnCompleteListener
             fragment?.getMapAsync { map ->
                 map.clear()
@@ -77,19 +85,14 @@ class RouteActivity : AppCompatActivity() {
     }
 
     private fun actionBar(content: LinearLayout, from: String, to: String) {
-        content.action("Retour") { finish() }
+        content.backLink { finish() }
         content.space(12)
         content.label("Votre itinéraire", 27f, bold = true, heading = true)
         content.label("$from → $to", 15f)
         content.space(8)
         content.action("Ouvrir dans Google Maps") {
-            val uri = Uri.parse("https://www.google.com/maps/dir/").buildUpon()
-                .appendQueryParameter("api", "1")
-                .appendQueryParameter("origin", from)
-                .appendQueryParameter("destination", to)
-                .appendQueryParameter("travelmode", "driving").build()
             try {
-                startActivity(Intent(Intent.ACTION_VIEW, uri))
+                startActivity(Intent(Intent.ACTION_VIEW, directionsUri(from, to)))
             } catch (_: ActivityNotFoundException) {
                 MaterialAlertDialogBuilder(this)
                     .setMessage("Aucune application ne peut afficher l’itinéraire.")

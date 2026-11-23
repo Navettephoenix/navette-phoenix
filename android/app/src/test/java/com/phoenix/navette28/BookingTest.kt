@@ -56,4 +56,10 @@ class BookingTest {
         assertNotNull(booking.copy(needs = "a".repeat(301)).validateContact())
         assertNotNull(booking.copy(notes = "a".repeat(501)).validateContact())
     }
+
+    @Test fun pointsToTheMissingReturnTimeAndRejectsAMailingListAsContact() {
+        assertEquals("returnTime", booking.copy(returnDate = booking.date)
+            .validateTrip(now, returnRequested = true)?.field)
+        assertEquals("email", booking.copy(email = "client,autre@example.test").validateContact()?.field)
+    }
 }

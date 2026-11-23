@@ -1,3 +1,4 @@
 <resources>
     <item name="route_map_container" type="id" />
+    <item name="screen_scroll" type="id" />
 </resources>
