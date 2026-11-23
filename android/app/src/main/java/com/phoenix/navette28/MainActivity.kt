@@ -151,15 +151,21 @@ class MainActivity : AppCompatActivity() {
         val width = if (resources.configuration.screenWidthDp >= 560) dp(560) else -1
         root.addView(column, FrameLayout.LayoutParams(width, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         scroll.addView(root)
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { _, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        // Equivalent View de Modifier.statusBarsPadding() pour toutes les barres du haut.
+        column.setPadding(dp(20), dp(14), dp(20), dp(24))
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
+            val status = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+            val navigation = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime())
-            column.setPadding(dp(19) + bars.left, dp(14) + bars.top,
-                dp(19) + bars.right, dp(24) + maxOf(bars.bottom, keyboard.bottom))
+            view.setPadding(
+                maxOf(status.left, navigation.left), status.top,
+                maxOf(status.right, navigation.right), maxOf(navigation.bottom, keyboard.bottom)
+            )
             insets
         }
         column.isFocusableInTouchMode = true
         setContentView(scroll)
+        ViewCompat.requestApplyInsets(scroll)
         column.requestFocus()
 
         if (next != Screen.HOME && next != Screen.RECEIPT) {
