@@ -27,6 +27,18 @@ internal fun statusLabel(status: String?): String = when (status) {
     else -> "Statut à vérifier auprès de Phoenix LTS"
 }
 
+/** Libellé court pour la lecture rapide des cartes ; le détail reste affiché dessous. */
+internal fun statusShortLabel(status: String?): String = when (status) {
+    "PENDING" -> "À transmettre"
+    "SENDING" -> "Transmission en cours"
+    "SENT", "RECEIVED" -> "En attente de confirmation"
+    "CONFIRMED" -> "Réservation confirmée"
+    "DECLINED" -> "Demande refusée"
+    "CANCELLED" -> "Demande annulée"
+    "INVALID" -> "Envoi impossible"
+    else -> "Statut à vérifier"
+}
+
 /** Distingue un accusé de transmission d'une réservation réellement confirmée. */
 internal fun statusTone(status: String?): Int = when (status) {
     "CONFIRMED" -> 0xFF17623B.toInt()
@@ -72,25 +84,37 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                     else -> "Demande"
                 }
                 val card = cards.panel(title)
+                val from = entry.departure?.trim().orEmpty()
+                val to = entry.arrival?.trim().orEmpty()
+                if (from.isNotEmpty() || to.isNotEmpty()) {
+                    card.label("TRAJET", 12f, Palette.muted, bold = true)
+                    card.space(4)
+                    if (from.isNotEmpty()) card.label("Départ  ·  $from", 16f, Palette.ink, bold = true)
+                    if (to.isNotEmpty()) {
+                        card.space(4)
+                        card.label("Arrivée  ·  $to", 16f, Palette.ink, bold = true)
+                    }
+                    card.space(9)
+                }
                 if (!entry.date.isNullOrBlank()) {
                     card.label(listOfNotNull(Booking.displayDate(entry.date), entry.time?.takeIf { it.isNotBlank() })
-                        .joinToString(" à "), 16f, bold = true)
-                    card.space(5)
+                        .joinToString(" à "), 15f, Palette.muted)
+                    card.space(9)
                 }
-                if (!entry.departure.isNullOrBlank()) card.label("Départ · ${entry.departure}", 15f)
-                if (!entry.arrival.isNullOrBlank()) card.label("Arrivée · ${entry.arrival}", 15f)
-                card.space(7)
                 if (entry.pricingType == "FIXED" && entry.pricingZone != null &&
                     entry.pricePerPassenger != null && entry.passengers != null && entry.priceTotal != null) {
-                    card.label("Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)", 14f)
-                    card.label("Tarif estimé : ${entry.priceTotal} €", 18f, Palette.sun, bold = true)
+                    card.label("Tarif estimé  ·  ${entry.priceTotal} €", 20f, Palette.sun, bold = true)
+                    card.space(3)
+                    card.label("Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)", 13f, Palette.muted)
                 } else if (entry.pricingType == "QUOTE") {
-                    card.label("Tarif sur devis", 16f, Palette.sun, bold = true)
+                    card.label("Tarif sur devis", 18f, Palette.sun, bold = true)
                 }
-                card.space(6)
-                card.label(statusLabel(entry.status), 16f, statusTone(entry.status), bold = true)
-                card.space(5)
-                card.label(entry.reference, 15f, Palette.muted).setTextIsSelectable(true)
+                card.space(12)
+                card.label(statusShortLabel(entry.status), 16f, statusTone(entry.status), bold = true)
+                card.space(3)
+                card.label(statusLabel(entry.status), 13f, Palette.muted)
+                card.space(9)
+                card.label("Référence  ·  ${entry.reference}", 13f, Palette.muted).setTextIsSelectable(true)
                 cards.space(10)
             }
         }
