@@ -55,6 +55,7 @@ class MainActivityTest {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
             window.button("Réserver une navette").performClick()
+            window.button("Recherche d’adresse (optionnelle)  +").performClick()
             val search = window.descendants().filterIsInstance<MaterialButton>()
                 .first { it.text.toString() == "Rechercher une adresse (IGN)" }
             search.performClick()
