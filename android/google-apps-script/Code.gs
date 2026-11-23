@@ -384,6 +384,60 @@ function firestore_(path, method, token, body, allowConflict) {
  * Diagnostic non destructif : ne transmet aucun e-mail et ne modifie aucune demande.
  * Exécuter depuis l'éditeur Apps Script avec le compte qui possède le déclencheur.
  */
+/**
+ * Lecture de 100 dossiers maximum par statut, sans nom, e-mail ni numéro de téléphone.
+ * Le suivi compare la date de prise en charge à la date actuelle ; il ne relance rien.
+ */
+function queueSnapshot_(parent, token, statusField, states) {
+  const counts = {};
+  const stale = {};
+  const samples = {};
+  const missingTransitionTime = {};
+  const now = Date.now();
+  for (const status of states) {
+    const rows = firestore_(parent + ':runQuery', 'post', token, {
+      structuredQuery: {
+        from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
+        where: { fieldFilter: {
+          field: { fieldPath: statusField }, op: 'EQUAL', value: { stringValue: status }
+        } },
+        // L'index existant classe mailStatus+createdAt ; l'index d'accusé filtre son statut.
+        ...(statusField === 'mailStatus'
+          ? { orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'ASCENDING' }] }
+          : {}),
+        limit: 100
+      }
+    });
+    const docs = rows.map(row => row.document).filter(Boolean);
+    counts[status] = docs.length;
+    const isProcessing = status === 'SENDING';
+    const field = statusField === 'mailStatus'
+      ? (isProcessing ? 'mailStatusUpdatedAt' : 'createdAt')
+      : (isProcessing ? 'customerReceiptUpdatedAt' : 'createdAt');
+    const stuck = docs.filter(document => {
+      if (status !== 'PENDING' && !isProcessing) return false;
+      const raw = (document.fields[field] || {}).timestampValue;
+      const timestamp = Date.parse(raw || '');
+      return Number.isFinite(timestamp) && now - timestamp >= 20 * 60 * 1000;
+    });
+    stale[status] = stuck.length;
+    // Référence interne seulement ; pas de données de contact dans le journal.
+    samples[status] = stuck.slice(0, 5).map(document => {
+      const id = document.name.split('/').pop() || '';
+      return 'NP-' + id.replace(/-/g, '').slice(0, 16).toUpperCase();
+    });
+    missingTransitionTime[status] = isProcessing
+      ? docs.filter(document => !(document.fields[field] || {}).timestampValue).length
+      : 0;
+  }
+  return {
+    first100Counts: counts,
+    delayedOver20Minutes: stale,
+    delayedReferences: samples,
+    missingTransitionTime
+  };
+}
+
 function diagnostiquerNavettePhoenix() {
   const properties = PropertiesService.getScriptProperties();
   const project = (properties.getProperty('FIREBASE_PROJECT_ID') || 'navette-phoenix').trim();
@@ -394,38 +448,88 @@ function diagnostiquerNavettePhoenix() {
   const triggers = ScriptApp.getProjectTriggers()
     .filter(trigger => trigger.getHandlerFunction() === 'relayGoogleMailRequests');
   const parent = 'projects/' + project + '/databases/(default)/documents';
-  const counts = {};
   const token = ScriptApp.getOAuthToken();
-  for (const status of ['PENDING', 'SENDING', 'SENT', 'INVALID']) {
-    const response = firestore_(parent + ':runQuery', 'post', token, {
-      structuredQuery: {
-        from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
-        where: { fieldFilter: {
-          field: { fieldPath: 'mailStatus' }, op: 'EQUAL', value: { stringValue: status }
-        } },
-        // Même index composite que le relais : mailStatus + createdAt ASC.
-        // Sans tri, Firestore peut exiger un index COLLECTION_GROUP distinct.
-        orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'ASCENDING' }],
-        limit: 100
-      }
-    });
-    // Le diagnostic compte les 100 premières demandes par statut, sans exposer les coordonnées.
-    counts[status] = response.filter(row => row.document).length;
-  }
+  const relay = queueSnapshot_(parent, token, 'mailStatus',
+    ['PENDING', 'SENDING', 'SENT', 'INVALID']);
   const report = {
-    project: project,
+    project,
     recipientConfigured: true,
     activeRelayTriggers: triggers.length,
     remainingDailyMailQuota: MailApp.getRemainingDailyQuota(),
     customerReceiptsEnabled: ENABLE_CUSTOMER_RECEIPTS_,
-    countsFirst100: counts,
-    action: triggers.length === 0
-      ? 'Installer le déclencheur relayGoogleMailRequests (toutes les cinq minutes).'
-      : counts.SENDING > 0
-        ? 'Vérifier la réception et les exécutions Google avant toute relance manuelle des demandes SENDING.'
-        : counts.PENDING > 0
-          ? 'Exécuter relayGoogleMailRequests puis consulter Mes demandes et la boîte de réservation.'
-          : 'Aucune demande en attente parmi les 100 premières par statut.'
+    countsFirst100: relay.first100Counts,
+    relayBacklog: relay,
+    customerReceiptBacklog: null,
+    action: triggers.length !== 1
+      ? 'Le relais exige exactement un déclencheur : vérifier les déclencheurs Apps Script.'
+      : relay.first100Counts.SENDING > 0
+        ? 'Contrôler les demandes SENDING dans Gmail et Firestore avant tout renvoi.'
+        : relay.first100Counts.INVALID > 0
+          ? 'Contrôler les demandes INVALID et contacter les clients concernés.'
+          : relay.delayedOver20Minutes.PENDING > 0
+            ? 'File PENDING âgée de plus de 20 minutes : vérifier le quota, les index et les exécutions.'
+            : 'Suivi disponible. Aucun renvoi automatique des demandes SENDING.'
+  };
+  if (ENABLE_CUSTOMER_RECEIPTS_) {
+    report.customerReceiptBacklog = queueSnapshot_(parent, token, 'customerReceiptStatus',
+      ['PENDING', 'SENDING', 'SENT', 'INVALID']);
+  }
+  console.log(JSON.stringify(report));
+  return report;
+}
+
+/**
+ * Contrôle préalable non destructif : n'active aucun envoi, ne crée aucun
+ * déclencheur et ne modifie pas Firestore. Les validations juridiques restent humaines.
+ */
+function verifierActivationAccuseClient() {
+  testerAccuseClientSansEnvoi();
+  const properties = PropertiesService.getScriptProperties();
+  const project = (properties.getProperty('FIREBASE_PROJECT_ID') || 'navette-phoenix').trim();
+  const triggers = ScriptApp.getProjectTriggers()
+    .filter(trigger => trigger.getHandlerFunction() === 'relayGoogleMailRequests');
+  const quota = MailApp.getRemainingDailyQuota();
+  const blockers = [];
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project)) {
+    blockers.push('Projet Firebase non valide');
+  }
+  if (triggers.length !== 1) blockers.push('Un seul déclencheur relayGoogleMailRequests doit exister');
+  if (quota < 2) blockers.push('Quota insuffisant pour deux destinataires par réservation');
+  let indexAvailable = false;
+  if (blockers.indexOf('Projet Firebase non valide') === -1) {
+    try {
+      const parent = 'projects/' + project + '/databases/(default)/documents';
+      firestore_(parent + ':runQuery', 'post', ScriptApp.getOAuthToken(), {
+        structuredQuery: {
+          from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
+          where: { fieldFilter: {
+            field: { fieldPath: 'customerReceiptStatus' }, op: 'EQUAL',
+            value: { stringValue: 'PENDING' }
+          } },
+          limit: 1
+        }
+      });
+      indexAvailable = true;
+    } catch (error) {
+      blockers.push('Index Firestore/accès customerReceiptStatus non prêts : ' +
+        String(error.message || error).slice(0, 250));
+    }
+  }
+  const report = {
+    checkedWithoutSending: true,
+    automaticCustomerMailEnabled: ENABLE_CUSTOMER_RECEIPTS_,
+    activeRelayTriggers: triggers.length,
+    remainingDailyMailQuota: quota,
+    estimatedRemainingReservationsWithReceipt: Math.floor(quota / 2),
+    customerReceiptIndexReady: indexAvailable,
+    technicalPreflightOk: blockers.length === 0,
+    blockers,
+    manualChecksBeforeEnabling: [
+      'Politique de confidentialité et information sur l’accusé client approuvées',
+      'Boîte de réponse Phoenix LTS et quota quotidien acceptés',
+      'Une réservation de test avec une adresse e-mail que vous contrôlez',
+      'Ne pas réactiver une demande SENDING sans vérifier la boîte de réception'
+    ]
   };
   console.log(JSON.stringify(report));
   return report;
@@ -440,7 +544,7 @@ function testerAccuseClientSansEnvoi() {
   const document = { fields: {
     email: { stringValue: 'client@example.test' },
     service: { stringValue: 'NAVETTE' },
-    departure: { stringValue: 'Senonches · Mairie' },
+    departure: { stringValue: '<b>Senonches</b> · Mairie' },
     arrival: { stringValue: 'La Loupe · Gare' },
     date: { stringValue: '2027-04-16' },
     time: { stringValue: '10:15' }
@@ -448,7 +552,9 @@ function testerAccuseClientSansEnvoi() {
   const message = customerReceiptMessage_(document, id);
   if (!message || !message.subject.includes('NP-')
       || !message.body.includes('EN ATTENTE DE CONFIRMATION')
-      || !message.htmlBody.includes('EN ATTENTE DE CONFIRMATION')) {
+      || !message.htmlBody.includes('EN ATTENTE DE CONFIRMATION')
+      || !message.htmlBody.includes('&lt;b&gt;Senonches&lt;/b&gt;')
+      || message.htmlBody.includes('<b>Senonches</b>')) {
     throw new Error('Le modèle d’accusé client n’est pas conforme.');
   }
   console.log(JSON.stringify({
