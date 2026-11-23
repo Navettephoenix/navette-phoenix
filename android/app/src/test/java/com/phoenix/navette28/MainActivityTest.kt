@@ -193,7 +193,8 @@ class MainActivityTest {
             content.requestHistory("NP-DEMO") { next }
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(content.labels().containsAll(listOf("Demande de devis", "16 avril 2027 à 10:15",
-                "Départ · Senonches", "NP-OLD", statusLabel("CONFIRMED"))))
+                "Départ  ·  Senonches", "Référence  ·  NP-OLD", statusLabel("CONFIRMED"),
+                statusShortLabel("CONFIRMED"))))
             next = Tasks.forException(IllegalStateException("offline"))
             content.button("Actualiser").performClick()
             shadowOf(Looper.getMainLooper()).idle()
