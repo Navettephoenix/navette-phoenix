@@ -91,6 +91,43 @@ function sandbox({ quota = 10, conflict = false, providerError = false, priced =
   return { run, mail, states, queryCount: () => queries };
 }
 
+test('le diagnostic emploie le même index composite que le relais sans envoyer de mails', () => {
+  const queries = [];
+  let messagesSent = 0;
+  const logs = [];
+  const run = runInNewContext(source + '\n' + 'diagnostiquerNavettePhoenix;', {
+    PropertiesService: { getScriptProperties: () => ({ getProperty: name =>
+      name === 'FIREBASE_PROJECT_ID' ? 'demo-navette' : null }) },
+    ScriptApp: {
+      getOAuthToken: () => 'test-token',
+      getProjectTriggers: () => [{ getHandlerFunction: () => 'relayGoogleMailRequests' }],
+    },
+    MailApp: {
+      getRemainingDailyQuota: () => 10,
+      sendEmail: () => { messagesSent += 1; },
+    },
+    console: { log: message => logs.push(message) },
+    UrlFetchApp: {
+      fetch(_url, request) {
+        const body = JSON.parse(request.payload);
+        queries.push(body.structuredQuery);
+        return { getResponseCode: () => 200, getContentText: () => '[]' };
+      },
+    },
+  });
+  const report = run();
+  assert.equal(queries.length, 4);
+  assert.equal(report.activeRelayTriggers, 1);
+  assert.equal(messagesSent, 0);
+  assert.equal(logs.length, 1);
+  for (const query of queries) {
+    assert.equal(query.from[0].collectionId, 'googleMailRequests');
+    assert.equal(query.orderBy[0].field.fieldPath, 'createdAt');
+    assert.equal(query.orderBy[0].direction, 'ASCENDING');
+    assert.equal(query.where.fieldFilter.field.fieldPath, 'mailStatus');
+  }
+});
+
 test('transmet une seule fois la demande à la boîte réglée dans le script', () => {
   const relay = sandbox();
   relay.run();
