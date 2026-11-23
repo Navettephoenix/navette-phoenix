@@ -214,3 +214,40 @@ fun LinearLayout.field(
     space(11)
     return layout
 }
+
+/** A read-only selection field: clearly labelled, keyboard-free and fully tappable. */
+fun LinearLayout.pickerField(
+    title: String, selectedValue: String, iconRes: Int, pick: () -> Unit,
+): TextInputEditText {
+    val container = TextInputLayout(context).apply {
+        hint = title
+        boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+        boxBackgroundColor = Color.WHITE
+        setBoxCornerRadii(context.dp(12).toFloat(), context.dp(12).toFloat(),
+            context.dp(12).toFloat(), context.dp(12).toFloat())
+        endIconMode = TextInputLayout.END_ICON_CUSTOM
+        setEndIconDrawable(iconRes)
+        setEndIconContentDescription("Ouvrir le sélecteur : $title")
+        setEndIconOnClickListener { pick() }
+    }
+    val input = TextInputEditText(container.context).apply {
+        id = View.generateViewId()
+        inputType = InputType.TYPE_NULL
+        setSingleLine(true)
+        setText(selectedValue)
+        showSoftInputOnFocus = false
+        isFocusable = false
+        isClickable = true
+        isLongClickable = false
+        isCursorVisible = false
+        minHeight = context.dp(56)
+        textSize = 16f
+        setPaddingRelative(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
+        setOnClickListener { pick() }
+        contentDescription = if (selectedValue.isEmpty()) "Choisir $title" else "$title : $selectedValue"
+    }
+    container.addView(input, -1, -2)
+    addView(container, -1, -2)
+    space(7)
+    return input
+}
