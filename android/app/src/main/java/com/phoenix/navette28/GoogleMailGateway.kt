@@ -54,7 +54,8 @@ internal object GoogleMailGateway {
                         document.getString("pricingType"), document.getString("pricingSector"),
                         document.getLong("pricingZone")?.toInt(), document.getLong("passengers")?.toInt(),
                         document.getLong("pricePerPassenger")?.toInt(), document.getLong("priceTotal")?.toInt(),
-                        document.getTimestamp("createdAt")?.toDate()?.time)
+                        document.getTimestamp("createdAt")?.toDate()?.time,
+                        document.getTimestamp("mailStatusUpdatedAt")?.toDate()?.time)
                 }
             }
     }
