@@ -634,6 +634,9 @@ class MainActivity : AppCompatActivity() {
         operation.addOnCompleteListener(this) { task ->
             if (!submission.consume(task)) return@addOnCompleteListener
             if (!task.isSuccessful) {
+                if ((task.exception as? FirebaseFirestoreException)?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                    android.util.Log.w("NavettePhoenix", "Demande refusée par Firestore : vérifier le déploiement des règles V20.")
+                }
                 render(Screen.REVIEW, preserveScroll = true)
                 MaterialAlertDialogBuilder(this).setTitle("Envoi à vérifier")
                     .setMessage(errorMessage(task.exception))
@@ -667,7 +670,7 @@ class MainActivity : AppCompatActivity() {
         receipt.label(statusLabel(status), 16f)
         if (status == "PENDING") {
             receipt.space(6)
-            receipt.label("Demande enregistrée dans Firebase, mais l’e-mail n’est pas encore confirmé. Consultez « Mes demandes » pour suivre sa transmission.", 15f, Palette.muted)
+            receipt.label("Demande enregistrée, mais sa transmission au service de réservation reste en attente. Consultez « Mes demandes » pour suivre son statut.", 15f, Palette.muted)
         }
         column.space(16)
         column.action("Voir mes demandes", true) { render(Screen.HISTORY) }
@@ -920,7 +923,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun errorMessage(error: Exception?): String =
         if ((error as? FirebaseFirestoreException)?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-            "Firestore a refusé l’enregistrement. Les règles de sécurité V20 doivent être déployées sur Firebase avant les nouvelles demandes tarifées. Vérifiez « Mes demandes » avant de réessayer afin d’éviter un doublon."
+            "Le service n’a pas autorisé l’enregistrement de cette demande. Aucun e-mail n’est confirmé. Consultez « Mes demandes » avant de réessayer ou contactez le service de réservation."
         } else when ((error as? FirebaseFunctionsException)?.code) {
             FirebaseFunctionsException.Code.INVALID_ARGUMENT -> "Revérifiez les champs et le créneau."
             FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> "Trop de demandes récentes. Réessayez plus tard."
