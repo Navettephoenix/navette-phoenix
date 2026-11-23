@@ -10,7 +10,8 @@ class BookingTest {
     private val now = LocalDateTime.of(2027, 4, 15, 10, 0)
     private val booking = Booking(Service.NAVETTE, "Senonches", "Gare de La Loupe",
         "2027-04-16", "11:30", "", "", 2, 3, "Passager test",
-        "0600000000", "test@example.test", "", "", true)
+        "0600000000", "test@example.test", "", "", true,
+        departureCommune = "Senonches", arrivalCommune = "La Loupe")
 
     @Test fun validTripAndContact() {
         assertNull(booking.validateTrip(now))
@@ -39,6 +40,8 @@ class BookingTest {
     }
 
     @Test fun rejectsMissingAddressesAndIncompleteReturn() {
+        assertNotNull(booking.copy(departureCommune = "").validateTrip(now))
+        assertNotNull(booking.copy(arrivalCommune = "").validateTrip(now))
         assertNotNull(booking.copy(departure = "").validateTrip(now))
         assertNotNull(booking.copy(returnDate = booking.date).validateTrip(now))
         assertNotNull(booking.copy(returnTime = "18:00").validateTrip(now))
