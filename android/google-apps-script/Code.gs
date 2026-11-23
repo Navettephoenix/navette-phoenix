@@ -1,5 +1,11 @@
 // Boîte officielle des réservations Phoenix LTS (ne dépend pas des propriétés privées).
 const RESERVATION_MAIL_TO_ = 'caro.resanavettephoenix@gmail.com';
+/**
+ * Activation uniquement APRÈS vérification du quota, de la confidentialité et de l'index.
+ * false : le flux existant Phoenix LTS reste STRICTEMENT inchangé.
+ * Les nouvelles demandes, et non l'historique, recevront un accusé après transmission.
+ */
+const ENABLE_CUSTOMER_RECEIPTS_ = false;
 
 function relayGoogleMailRequests() {
   const properties = PropertiesService.getScriptProperties();
@@ -54,6 +60,9 @@ function relayGoogleMailRequests() {
         continue;
       }
       updateMailState_(claimed, 'SENT', token);
+    }
+    if (ENABLE_CUSTOMER_RECEIPTS_) {
+      relayCustomerReceipts_(parent, token);
     }
   } finally {
     lock.releaseLock();
@@ -200,10 +209,111 @@ function parisTime_(date, time) {
 
 function updateMailState_(document, state, token) {
   if (!document.updateTime) throw new Error('Version de demande Firestore absente.');
-  return firestore_(document.name + '?updateMask.fieldPaths=mailStatus&currentDocument.updateTime='
+  // Seules les nouvelles demandes traitées APRÈS activation seront éligibles.
+  const prepareReceipt = ENABLE_CUSTOMER_RECEIPTS_ && state === 'SENT';
+  const fields = { mailStatus: { stringValue: state } };
+  let mask = 'updateMask.fieldPaths=mailStatus';
+  if (prepareReceipt) {
+    fields.customerReceiptStatus = { stringValue: 'PENDING' };
+    mask += '&updateMask.fieldPaths=customerReceiptStatus';
+  }
+  return firestore_(document.name + '?' + mask + '&currentDocument.updateTime='
+    + encodeURIComponent(document.updateTime), 'patch', token, { fields }, true);
+}
+
+/** Ne réessaie jamais automatiquement un accusé SENDING : vérifier Gmail d'abord. */
+function updateCustomerReceiptState_(document, state, token) {
+  if (!document.updateTime) throw new Error('Version de demande Firestore absente.');
+  return firestore_(document.name + '?updateMask.fieldPaths=customerReceiptStatus&currentDocument.updateTime='
     + encodeURIComponent(document.updateTime), 'patch', token, {
-    fields: { mailStatus: { stringValue: state } }
+    fields: { customerReceiptStatus: { stringValue: state } }
   }, true);
+}
+
+/**
+ * Envoi facultatif APRÈS acceptation du courriel destiné à Phoenix LTS.
+ * Deux étapes Firestore SENDING/SENT limitent les doublons après interruption.
+ * Une demande en SENDING reste à contrôler manuellement, jamais à réenvoyer à l'aveugle.
+ */
+function relayCustomerReceipts_(parent, token) {
+  const limit = Math.min(10, MailApp.getRemainingDailyQuota());
+  if (limit < 1) return;
+  const rows = firestore_(parent + ':runQuery', 'post', token, {
+    structuredQuery: {
+      from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
+      where: { fieldFilter: {
+        field: { fieldPath: 'customerReceiptStatus' }, op: 'EQUAL',
+        value: { stringValue: 'PENDING' }
+      } },
+      limit
+    }
+  });
+  for (const row of rows) {
+    if (MailApp.getRemainingDailyQuota() < 1) break;
+    const document = row.document;
+    if (!document || !document.name.startsWith(parent + '/googleMailAccounts/')) continue;
+    const path = document.name.slice(parent.length + 1).split('/');
+    if (path.length !== 4 || path[2] !== 'googleMailRequests') continue;
+    if ((document.fields.mailStatus || {}).stringValue !== 'SENT') continue;
+    const message = customerReceiptMessage_(document, path[3]);
+    if (!message) {
+      updateCustomerReceiptState_(document, 'INVALID', token);
+      continue;
+    }
+    const claimed = updateCustomerReceiptState_(document, 'SENDING', token);
+    if (!claimed) continue;
+    try {
+      MailApp.sendEmail({
+        to: message.to, subject: message.subject, body: message.body,
+        htmlBody: message.htmlBody,
+        replyTo: RESERVATION_MAIL_TO_, name: 'Navette Phoenix 28'
+      });
+    } catch (_) {
+      console.warn('Accusé client à vérifier : statut SENDING conservé, aucun renvoi automatique.');
+      continue;
+    }
+    updateCustomerReceiptState_(claimed, 'SENT', token);
+  }
+}
+
+/** Le client reçoit un accusé de demande, jamais une confirmation de trajet. */
+function customerReceiptMessage_(document, id) {
+  const fields = document.fields || {};
+  const text = name => String((fields[name] || {}).stringValue || '').trim();
+  const to = text('email');
+  if (!mailAddress_(to) || !/^[a-f0-9-]{36}$/.test(id)) return null;
+  const reference = 'NP-' + id.replace(/-/g, '').slice(0, 16).toUpperCase();
+  const service = text('service') === 'DEVIS' ? 'devis' : 'navette';
+  const lines = [
+    'Votre demande ' + service + ' a été transmise à Navette Phoenix 28.',
+    'Référence : ' + reference,
+    'Départ : ' + text('departure'),
+    'Arrivée : ' + text('arrival'),
+    'Date et heure : ' + text('date') + ' à ' + text('time') + ' (heure de Paris)',
+    'Cette demande est EN ATTENTE DE CONFIRMATION par Phoenix LTS.',
+    'Pour toute question, répondez à cet e-mail.'
+  ];
+  const escape = value => String(value).replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const htmlBody = '<div style="font:16px Arial,sans-serif;max-width:600px;margin:auto;color:#241b17">'
+    + '<div style="background:#4b281d;color:white;padding:22px;border-radius:12px 12px 0 0">'
+    + '<strong>Navette Phoenix 28</strong></div>'
+    + '<div style="background:#fffaf6;padding:22px;border:1px solid #eadbd2">'
+    + '<h2>Demande reçue par notre service</h2>'
+    + '<p style="color:#9b2a0d;font-weight:bold">EN ATTENTE DE CONFIRMATION</p>'
+    + '<p>Référence : <strong>' + escape(reference) + '</strong></p>'
+    + '<p>Départ : ' + escape(text('departure')) + '</p>'
+    + '<p>Arrivée : ' + escape(text('arrival')) + '</p>'
+    + '<p>Aller : ' + escape(text('date') + ' à ' + text('time')) + ' (heure de Paris)</p>'
+    + '<p>Le trajet n’est confirmé qu’après validation explicite par Phoenix LTS.</p>'
+    + '<p>Vous pouvez répondre à cet e-mail pour nous contacter.</p>'
+    + '</div></div>';
+  return {
+    to,
+    subject: 'Navette Phoenix 28 · Demande transmise · ' + reference,
+    body: lines.join('\n'),
+    htmlBody
+  };
 }
 
 function firestore_(path, method, token, body, allowConflict) {
