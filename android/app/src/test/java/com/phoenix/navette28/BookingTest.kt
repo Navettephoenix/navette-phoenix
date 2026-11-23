@@ -80,6 +80,21 @@ class BookingTest {
         assertNotNull(booking.copy(notes = "a".repeat(501)).validateContact())
     }
 
+    @Test fun transmissionIsNotConfirmation() {
+        assertEquals("Enregistrée · En attente de transmission", statusLabel("PENDING"))
+        assertEquals("Transmise au service de réservation · En attente de réponse", statusLabel("SENT"))
+        assertEquals("Trajet confirmé par Phoenix LTS", statusLabel("CONFIRMED"))
+        assertEquals("Demande refusée", statusLabel("DECLINED"))
+        assertEquals(Palette.sun, statusTone("SENT"))
+        assertEquals(Palette.error, statusTone("INVALID"))
+        assertEquals(0xFF17623B.toInt(), statusTone("CONFIRMED"))
+    }
+
+    @Test fun unknownStatusNeverClaimsConfirmation() {
+        assertEquals("Statut à vérifier auprès de Phoenix LTS", statusLabel("UNKNOWN"))
+        assertEquals(Palette.muted, statusTone(null))
+    }
+
     @Test fun pointsToTheMissingReturnTimeAndRejectsAMailingListAsContact() {
         assertEquals("returnTime", booking.copy(returnDate = booking.date)
             .validateTrip(now, returnRequested = true)?.field)
