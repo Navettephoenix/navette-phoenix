@@ -50,7 +50,10 @@ internal object GoogleMailGateway {
                 task.result.documents.map { document ->
                     RequestSummary(reference(document.id), document.getString("mailStatus"),
                         document.getString("service"), document.getString("departure"), document.getString("arrival"),
-                        document.getString("date"), document.getString("time"))
+                        document.getString("date"), document.getString("time"),
+                        document.getString("pricingType"), document.getString("pricingSector"),
+                        document.getLong("pricingZone")?.toInt(), document.getLong("passengers")?.toInt(),
+                        document.getLong("pricePerPassenger")?.toInt(), document.getLong("priceTotal")?.toInt())
                 }
             }
     }
