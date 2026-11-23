@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('./Code.gs', import.meta.url), 'utf8');
 const requestId = '12345678-1234-4123-8123-123456789abc';
-const recipient = 'reservations@example.test';
+const recipient = 'caro.resanavettephoenix@gmail.com';
 const fixture = {
   requestId, service: 'NAVETTE', departure: 'Gare de La Loupe', arrival: 'Senonches',
   date: '2099-01-15', time: '14:00', returnDate: '2099-01-15', returnTime: '19:00',
@@ -86,6 +86,18 @@ test('transmet une seule fois la demande à la boîte réglée dans le script', 
   assert.equal(relay.mail[0].replyTo, fixture.email);
   assert.match(relay.mail[0].subject, /NP-1234567812344123/);
   assert.match(relay.mail[0].body, /Retour \(heure de Paris\).*19:00/);
+});
+
+test('calcule et transmet le tarif forfaitaire réel avec le nombre de passagers', () => {
+  const check = runInNewContext(source + '\nbookingPrice_;', {});
+  const fromForet = check('Digny', 'Senonches', true, 3);
+  assert.equal(fromForet.zone, 2);
+  assert.equal(fromForet.price, 6);
+  assert.equal(fromForet.oneWay, 18);
+  assert.equal(fromForet.total, 36);
+  assert.equal(check('SAINT-ELIPH', 'fontaine simon', true, 2).total, 24);
+  assert.equal(check('Senonches', 'La Loupe', false, 1), null);
+  assert.equal(check('Autre commune', 'Senonches', false, 1), null);
 });
 
 test('garde les demandes en attente si le quota est épuisé', () => {
