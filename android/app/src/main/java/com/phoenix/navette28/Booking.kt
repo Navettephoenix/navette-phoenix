@@ -29,10 +29,25 @@ data class Booking(
     val needs: String,
     val notes: String,
     val consent: Boolean,
+    val departureCommune: String = "",
+    val arrivalCommune: String = "",
+    val departureDetail: String = "",
+    val arrivalDetail: String = "",
 ) {
+    val pricing: PricingCalculator.Resultat
+        get() = PricingCalculator.calculerTarif(
+            departureCommune, arrivalCommune, returnDate.isNotBlank() && returnTime.isNotBlank(), passengers
+        )
+
     fun validateAddresses(): BookingIssue? {
-        if (departure.length !in 3..250) return BookingIssue("departure", "Indiquez votre adresse de départ.")
-        if (arrival.length !in 3..250) return BookingIssue("arrival", "Indiquez votre adresse d’arrivée.")
+        if (departureCommune == PricingCalculator.AUTRE_COMMUNE && departureDetail.isBlank()) {
+            return BookingIssue("departure", "Précisez la commune et le lieu de départ.")
+        }
+        if (arrivalCommune == PricingCalculator.AUTRE_COMMUNE && arrivalDetail.isBlank()) {
+            return BookingIssue("arrival", "Précisez la commune et le lieu d’arrivée.")
+        }
+        if (departure.length !in 3..250) return BookingIssue("departure", "Choisissez votre commune de départ.")
+        if (arrival.length !in 3..250) return BookingIssue("arrival", "Choisissez votre commune d’arrivée.")
         if (departure.equals(arrival, ignoreCase = true)) {
             return BookingIssue("arrival", "Choisissez une arrivée différente du départ.")
         }
@@ -92,6 +107,14 @@ data class Booking(
         "passengers" to passengers, "luggage" to luggage,
         "name" to name, "phone" to phone, "email" to email,
         "needs" to needs, "notes" to notes, "consent" to consent,
+        "departureCommune" to departureCommune, "arrivalCommune" to arrivalCommune,
+        "departureDetail" to departureDetail, "arrivalDetail" to arrivalDetail,
+        "pricingType" to if (pricing is PricingCalculator.Resultat.Tarif) "FIXED" else "QUOTE",
+        "pricingSector" to (pricing as? PricingCalculator.Resultat.Tarif)?.secteur?.name.orEmpty(),
+        "pricingZone" to ((pricing as? PricingCalculator.Resultat.Tarif)?.zone ?: 0),
+        "pricePerPassenger" to ((pricing as? PricingCalculator.Resultat.Tarif)?.prixParPassager ?: 0),
+        "priceOneWay" to ((pricing as? PricingCalculator.Resultat.Tarif)?.prixTotalTrajet ?: 0),
+        "priceTotal" to ((pricing as? PricingCalculator.Resultat.Tarif)?.prixTotal ?: 0),
     )
 
     companion object {
