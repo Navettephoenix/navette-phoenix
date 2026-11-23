@@ -20,3 +20,20 @@ L’accueil donne accès à la navette, au devis et au suivi. Le formulaire prop
 3. Envoyer une demande identifiée **TEST** depuis l’application, relever sa référence et vérifier la réception du même numéro dans la boîte de réservation. Le bouton **Actualiser** de **Mes demandes** permet de consulter l’état. La publication sur Google Play reste à faire avec la clé d’importation et le code de version vérifiés dans Play Console.
 
 Les commandes de compilation, les tests et la configuration de diffusion sont dans le [guide Android](README.md) et le [guide de mise en service](MISE-EN-SERVICE.md).
+
+
+## Reprise des corrections du 23 novembre 2026
+
+Le formulaire utilise désormais des champs de sélection en lecture seule, avec icônes calendrier/horloge et valeur choisie visible. Les tests simulés ont été adaptés. Ces modifications n'ont **pas encore été recompilées sur Android Studio** dans cette session.
+
+### Diagnostic sécurisé des e-mails
+
+Le dépôt contient désormais `diagnostiquerNavettePhoenix` dans `google-apps-script/Code.gs`. Ce diagnostic ne renvoie **aucune réservation** : il vérifie le nombre de déclencheurs actifs, le quota Gmail restant et le nombre de demandes dans chaque état (limité à 100 par état). Le script déployé sur le compte Google doit être synchronisé avec cette nouvelle version avant que la fonction ne soit disponible dans l'éditeur.
+
+1. Dans Apps Script, ouvrir **Navette Phoenix V20 - Reservations**.
+2. Conserver le fichier privé `Installation.gs` et ses fonctions d'installation, s'il est présent. Mettre à jour uniquement `Code.gs` depuis cette branche GitHub.
+3. Exécuter **`diagnostiquerNavettePhoenix`**, autoriser les accès si nécessaire, puis lire le **Journal d'exécution**.
+4. Si `activeRelayTriggers` vaut zéro, installer le déclencheur d'intervalle de cinq minutes pour `relayGoogleMailRequests`. Si `SENDING` n'est pas zéro, vérifier d'abord la boîte et les journaux avant de toucher aux demandes : l'envoi a pu avoir lieu sans mise à jour du statut.
+5. Si `PENDING` est supérieur à zéro et le quota disponible, lancer `relayGoogleMailRequests` et contrôler une demande par sa référence. Ne pas recréer la même réservation pour tester le relais.
+
+Le diagnostic ne garantit pas qu'un message a été distribué ou reçu, ni que la configuration du compte et les autorisations Firestore sont correctes. La mise en service n'est validée qu'après un test avec référence identique dans Firestore, le suivi Android et la boîte destinataire.
