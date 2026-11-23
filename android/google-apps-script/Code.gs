@@ -143,3 +143,50 @@ function firestore_(path, method, token, body, allowConflict) {
   }
   return JSON.parse(response.getContentText());
 }
+
+/**
+ * Diagnostic non destructif : ne transmet aucun e-mail et ne modifie aucune demande.
+ * Exécuter depuis l'éditeur Apps Script avec le compte qui possède le déclencheur.
+ */
+function diagnostiquerNavettePhoenix() {
+  const properties = PropertiesService.getScriptProperties();
+  const project = (properties.getProperty('FIREBASE_PROJECT_ID') || '').trim();
+  const recipient = (properties.getProperty('RESERVATION_MAIL_TO') || '').trim();
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) || !mailAddress_(recipient)) {
+    throw new Error('Propriétés FIREBASE_PROJECT_ID ou RESERVATION_MAIL_TO manquantes / invalides.');
+  }
+  const triggers = ScriptApp.getProjectTriggers()
+    .filter(trigger => trigger.getHandlerFunction() === 'relayGoogleMailRequests');
+  const parent = 'projects/' + project + '/databases/(default)/documents';
+  const counts = {};
+  const token = ScriptApp.getOAuthToken();
+  for (const status of ['PENDING', 'SENDING', 'SENT', 'INVALID']) {
+    const response = firestore_(parent + ':runQuery', 'post', token, {
+      structuredQuery: {
+        from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
+        where: { fieldFilter: {
+          field: { fieldPath: 'mailStatus' }, op: 'EQUAL', value: { stringValue: status }
+        } },
+        limit: 100
+      }
+    });
+    // Le diagnostic compte les 100 premières demandes par statut, sans exposer les coordonnées.
+    counts[status] = response.filter(row => row.document).length;
+  }
+  const report = {
+    project: project,
+    recipientConfigured: true,
+    activeRelayTriggers: triggers.length,
+    remainingDailyMailQuota: MailApp.getRemainingDailyQuota(),
+    countsFirst100: counts,
+    action: triggers.length === 0
+      ? 'Installer le déclencheur relayGoogleMailRequests (toutes les cinq minutes).'
+      : counts.SENDING > 0
+        ? 'Vérifier la réception et les exécutions Google avant toute relance manuelle des demandes SENDING.'
+        : counts.PENDING > 0
+          ? 'Exécuter relayGoogleMailRequests puis consulter Mes demandes et la boîte de réservation.'
+          : 'Aucune demande en attente parmi les 100 premières par statut.'
+  };
+  console.log(JSON.stringify(report));
+  return report;
+}
