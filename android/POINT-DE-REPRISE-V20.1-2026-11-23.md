@@ -2,6 +2,20 @@
 
 > Document de continuité. Ne pas modifier la logique de réservation, Firebase, les e-mails ou la configuration de publication sans tests. Aucun code applicatif n'a été modifié par cette prise de notes.
 
+## Suite des améliorations lancée après cette sauvegarde
+
+Les commits postérieurs à `961232e` ajoutent de façon **progressive** :
+
+- Un trajet favori explicitement enregistré sur le téléphone (`FavoriteTrip.kt`), avec réutilisation et suppression.
+- Une meilleure lisibilité des statuts et l'heure de la dernière actualisation réussie de l'historique.
+- Trois nouveaux tests envisagés : deux tests de stockage des favoris et un test de l'interface. Ils **n'ont pas encore été exécutés sur le PC**.
+- Un modèle d'accusé de réception au client dans `android/google-apps-script/Code.gs`, **désactivé par défaut** par `ENABLE_CUSTOMER_RECEIPTS_ = false`. Il n'a pas été transféré ni activé dans Apps Script actif. L'index `customerReceiptStatus` doit être déployé et le quota de courriels vérifié avant toute activation.
+- `android/MISE-EN-SERVICE.md` précise désormais les étapes de recette et de mise en service.
+
+À la reprise, exécuter `git pull` puis `:app:testDebugUnitTest :app:assembleDebug` et vérifier toutes les nouvelles fonctions sur l'émulateur. **Ne pas supposer que ces commits sont validés tant que le build n'est pas revenu vert**.
+
+---
+
 ## État du code et de l'environnement
 
 - Dépôt GitHub : `Navettephoenix/navette-phoenix`
