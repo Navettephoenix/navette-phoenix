@@ -12,7 +12,10 @@ const id = '12345678-1234-4123-8123-123456789012';
 const parent = 'projects/navette-phoenix/databases/(default)/documents';
 const name = parent + '/googleMailAccounts/client/googleMailRequests/' + id;
 
-function harness({ customer = false, failBusiness = false, failFinalPatch = false, quota = 100 } = {}) {
+function harness({
+  customer = false, failBusiness = false, failCustomer = false,
+  failFinalPatch = false, failReceiptFinalPatch = false, quota = 100
+} = {}) {
   const docs = [{
     name,
     updateTime: '2026-11-23T09:00:00.000Z',
@@ -47,6 +50,9 @@ function harness({ customer = false, failBusiness = false, failFinalPatch = fals
         if (failBusiness && email.to === 'caro.resanavettephoenix@gmail.com') {
           throw new Error('simulated Gmail outage');
         }
+        if (failCustomer && email.to === 'client@example.test') {
+          throw new Error('simulated customer Gmail outage');
+        }
         if (quota < 1) throw new Error('quota exhausted');
         quota--;
         sent.push(email);
@@ -72,6 +78,9 @@ function harness({ customer = false, failBusiness = false, failFinalPatch = fals
           }
           const patch = JSON.parse(args.payload).fields;
           if (failFinalPatch && patch.mailStatus?.stringValue === 'SENT') {
+            return response(503, { error: { status: 'UNAVAILABLE' } });
+          }
+          if (failReceiptFinalPatch && patch.customerReceiptStatus?.stringValue === 'SENT') {
             return response(503, { error: { status: 'UNAVAILABLE' } });
           }
           Object.assign(doc.fields, patch);
@@ -151,6 +160,31 @@ test('Si Firestore échoue après Gmail, ne pas renvoyer le courriel', () => {
   h.api.relayGoogleMailRequests();
   assert.equal(h.sent.length, 1);
   assert.equal(h.docs[0].fields.mailStatus.stringValue, 'SENDING');
+});
+test('Panne Gmail client : aucun renvoi automatique de l’accusé incertain', () => {
+  const h = harness({ customer: true, failCustomer: true });
+  h.api.relayGoogleMailRequests();
+  h.api.relayGoogleMailRequests();
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.docs[0].fields.mailStatus.stringValue, 'SENT');
+  assert.equal(h.docs[0].fields.customerReceiptStatus.stringValue, 'SENDING');
+});
+test('Panne Firestore après e-mail client : ne pas renvoyer cet accusé', () => {
+  const h = harness({ customer: true, failReceiptFinalPatch: true });
+  h.api.relayGoogleMailRequests();
+  h.api.relayGoogleMailRequests();
+  assert.equal(h.sent.length, 2);
+  assert.equal(h.docs[0].fields.mailStatus.stringValue, 'SENT');
+  assert.equal(h.docs[0].fields.customerReceiptStatus.stringValue, 'SENDING');
+});
+test('Accusé ancien prioritaire même avec un seul destinataire disponible', () => {
+  const h = harness({ customer: true, quota: 1 });
+  h.docs[0].fields.mailStatus = { stringValue: 'SENT' };
+  h.docs[0].fields.customerReceiptStatus = { stringValue: 'PENDING' };
+  h.api.relayGoogleMailRequests();
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].to, 'client@example.test');
+  assert.equal(h.docs[0].fields.customerReceiptStatus.stringValue, 'SENT');
 });
 test('Quota un destinataire : aucun nouvel envoi double', () => {
   const h = harness({ customer: true, quota: 1 });
