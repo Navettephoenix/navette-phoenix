@@ -20,6 +20,7 @@ internal data class RequestSummary(
     val pricingType: String? = null, val pricingSector: String? = null,
     val pricingZone: Int? = null, val passengers: Int? = null,
     val pricePerPassenger: Int? = null, val priceTotal: Int? = null,
+    val createdAtMillis: Long? = null,
 )
 
 internal fun statusLabel(status: String?): String = when (status) {
@@ -52,6 +53,21 @@ internal fun statusTone(status: String?): Int = when (status) {
     "DECLINED", "CANCELLED", "INVALID" -> Palette.error
     "PENDING", "SENDING", "SENT", "RECEIVED" -> Palette.sun
     else -> Palette.muted
+}
+
+/**
+ * Une demande ancienne n'est pas automatiquement relancée : un envoi Gmail peut
+ * avoir réussi alors que l'écriture de son accusé dans Firestore a échoué.
+ */
+internal fun transmissionWarning(status: String?, createdAtMillis: Long?, nowMillis: Long): String? {
+    if (status != "PENDING" && status != "SENDING") return null
+    if (createdAtMillis == null || createdAtMillis <= 0 || nowMillis < createdAtMillis ||
+        nowMillis - createdAtMillis < 20 * 60 * 1000L) return null
+    return if (status == "SENDING") {
+        "Transmission à vérifier. L'e-mail a peut-être été envoyé. Contactez Phoenix LTS avec votre référence avant toute nouvelle demande."
+    } else {
+        "Transmission plus longue que prévu. Actualisez le suivi ou contactez Phoenix LTS avec votre référence. Ne renvoyez pas la même demande."
+    }
 }
 
 internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List<RequestSummary>>)?) {
@@ -117,6 +133,10 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                     card.space(6)
                 }
                 card.label(statusShortLabel(entry.status), 16f, statusTone(entry.status), bold = true)
+                transmissionWarning(entry.status, entry.createdAtMillis, System.currentTimeMillis())?.let { warning ->
+                    card.space(6)
+                    card.label(warning, 15f, Palette.error)
+                }
                 card.space(10)
 
                 // La fiche détaillée est consultable à la demande : la liste reste compacte.
