@@ -7,7 +7,7 @@ import android.os.Bundle
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AutoCompleteTextView
+import android.widget.ListView
 import android.widget.TextView
 import android.widget.TimePicker
 import androidx.lifecycle.ViewModelProvider
@@ -51,18 +51,21 @@ class MainActivityTest {
         }
     }
 
-    @Test fun bookingFocusesTheInvalidAddressAndClearsTheErrorOnEdit() {
+    @Test fun bookingHighlightsMissingCommuneAndUpdatesEstimatedPrice() {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
             window.button("Réserver une navette").performClick()
             window.button("Continuer").performClick()
-            val departure = window.field("Départ")
-            assertEquals("Indiquez votre adresse de départ.", departure.error)
-            assertTrue(departure.editText!!.hasFocus())
-            departure.editText!!.setText("Senonches")
-            assertNull(departure.error)
-            window.button("Continuer").performClick()
-            assertEquals("Indiquez votre adresse d’arrivée.", window.field("Arrivée").error)
+            assertTrue(window.labels().contains("Choisissez votre commune de départ."))
+            window.chooseCommune("Départ", "Digny")
+            window.chooseCommune("Arrivée", "Senonches")
+            assertTrue(window.labels().contains("Zone 2 · 6 € par passager"))
+            assertTrue(window.labels().contains("Total : 6 €"))
+            val increase = window.descendants().single { it.contentDescription == "Ajouter un passager" }
+            repeat(2) { increase.performClick() }
+            assertTrue(window.labels().contains("Total : 18 €"))
+            window.descendants().filterIsInstance<MaterialCheckBox>().single().isChecked = true
+            assertTrue(window.labels().contains("Total aller-retour : 36 €"))
         }
     }
 
@@ -70,8 +73,8 @@ class MainActivityTest {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             var window = controller.get().window.decorView
             window.button("Demander un devis").performClick()
-            window.field("Départ").editText!!.setText("Senonches")
-            window.field("Arrivée").editText!!.setText("Gare de La Loupe")
+            window.chooseCommune("Départ", "Senonches")
+            window.chooseCommune("Arrivée", "La Loupe")
             window.field("Date du départ").editText!!.performClick()
             val day = LocalDate.now(Booking.PARIS).plusDays(7)
             val datePicker = ShadowDialog.getLatestDialog() as DatePickerDialog
@@ -97,12 +100,13 @@ class MainActivityTest {
             window.field("E-mail").editText!!.setText("client@example.test")
             window.descendants().filterIsInstance<MaterialCheckBox>().single().isChecked = true
             window.button("Vérifier ma demande").performClick()
-            assertTrue(window.labels().containsAll(listOf("4 passagers · 0 bagage", "Client démo")))
+            assertTrue(window.labels().containsAll(listOf("4 passagers · 0 bagage", "Client démo", "Tarif sur devis")))
             window.button("Modifier le trajet").performClick()
-            window.field("Arrivée").editText!!.setText("Gare de Chartres")
+            window.chooseCommune("Arrivée", "Autre commune")
+            window.field("Arrivée · Lieu précis (gare, mairie, adresse…)").editText!!.setText("Gare de Chartres")
             controller.recreate()
             window = controller.get().window.decorView
-            assertEquals("Gare de Chartres", window.field("Arrivée").editText!!.text.toString())
+            assertEquals("Gare de Chartres", window.field("Arrivée · Lieu précis (gare, mairie, adresse…)").editText!!.text.toString())
             window.button("Enregistrer les modifications").performClick()
             assertTrue(window.labels().containsAll(listOf("Gare de Chartres", "client@example.test")))
             window.button("Modifier mes coordonnées").performClick()
@@ -113,22 +117,21 @@ class MainActivityTest {
         }
     }
 
-    @Test fun localPlacesAllowAFreeAddressAndMapsReceivesBothAddresses() {
+    @Test fun anOtherCommuneCanStillBeUsedForMapsAndQuote() {
         if (!BuildConfig.GOOGLE_MAIL) return
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
             window.button("Réserver une navette").performClick()
-            val field = window.field("Départ").editText as AutoCompleteTextView
-            val places = (0 until field.adapter.count).map { field.adapter.getItem(it).toString() }
-            assertEquals(39, places.distinct().size)
-            assertTrue(places.containsAll(listOf("Senonches", "Gare de La Loupe")))
-            field.setText("8 rue de l’Église & du Parc", false)
-            window.field("Arrivée").editText!!.setText("Gare de La Loupe")
+            window.chooseCommune("Départ", "Autre commune")
+            window.field("Départ · Lieu précis (gare, mairie, adresse…)").editText!!.setText("8 rue de l’Église & du Parc")
+            window.chooseCommune("Arrivée", "La Loupe")
+            window.field("Arrivée · Lieu précis (gare, mairie, adresse…)").editText!!.setText("Gare")
+            assertTrue(window.labels().contains("Tarif sur devis"))
             window.button("Voir dans Google Maps").performClick()
             val uri = shadowOf(controller.get()).nextStartedActivity.data!!
             assertEquals("www.google.com", uri.host)
             assertEquals("8 rue de l’Église & du Parc", uri.getQueryParameter("origin"))
-            assertEquals("Gare de La Loupe", uri.getQueryParameter("destination"))
+            assertEquals("La Loupe · Gare", uri.getQueryParameter("destination"))
         }
     }
 
@@ -172,6 +175,16 @@ class MainActivityTest {
             assertTrue(content.labels().contains(statusLabel("SENT")))
             assertFalse(content.labels().contains(statusLabel("PENDING")))
         }
+    }
+
+    private fun View.chooseCommune(label: String, commune: String) {
+        field("$label · Commune").editText!!.performClick()
+        val dialog = ShadowDialog.getLatestDialog()
+        val list = dialog.window!!.decorView.descendants().filterIsInstance<ListView>().single()
+        val position = (0 until list.adapter.count).single {
+            list.adapter.getItem(it).toString() == commune
+        }
+        list.performItemClick(null, position, list.adapter.getItemId(position))
     }
 
     private fun View.field(hint: String) =
