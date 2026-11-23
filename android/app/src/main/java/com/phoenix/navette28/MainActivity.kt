@@ -436,8 +436,59 @@ class MainActivity : AppCompatActivity() {
             dialog.show()
         }
         feedback.control(key, parent, selector)
-        val detail = bind(parent, "$label · Lieu précis (gare, mairie, adresse…)", detailKey, limit = 150)
+        val detail = bind(parent, "$label · Lieu précis (gare, mairie, adresse…)",
+            detailKey, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS, 150)
         detail.doAfterTextChanged { updateAddress() }
+        val help = parent.label(
+            "Saisissez le numéro et la rue ou le lieu connu, puis recherchez une proposition.",
+            13f, Palette.muted
+        )
+        parent.space(3)
+        lateinit var searchButton: MaterialButton
+        searchButton = parent.navigationLink("Rechercher une adresse (IGN)", R.drawable.ic_destinations) {
+            val query = detail.text.toString().trim()
+            if (value(communeKey).isBlank()) {
+                feedback.show(BookingIssue(key, "Choisissez d’abord votre commune."))
+                return@navigationLink
+            }
+            if (query.length < 3) {
+                detail.error = "Saisissez au moins trois caractères avant de rechercher."
+                detail.requestFocus()
+                return@navigationLink
+            }
+            detail.error = null
+            searchButton.isEnabled = false
+            help.text = "Recherche d’adresses en cours…"
+            val selectedCommune = value(communeKey)
+            AddressLookup.search(query, selectedCommune) { result ->
+                searchButton.isEnabled = true
+                if (screen != Screen.TRIP || !detail.isAttachedToWindow ||
+                    value(communeKey) != selectedCommune || detail.text.toString().trim() != query) {
+                    return@search
+                }
+                help.text = "Choisissez une adresse proposée ou conservez votre saisie manuelle."
+                val addresses = result.getOrNull().orEmpty()
+                if (addresses.isEmpty()) {
+                    showMessage(
+                        if (result.isFailure)
+                            "Le service d’adresses est indisponible. Conservez une adresse précise et vérifiez-la sur Google Maps."
+                        else
+                            "Aucune adresse correspondante dans cette commune. Vous pouvez préciser le lieu manuellement."
+                    )
+                } else {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("Choisir l’adresse de $label")
+                        .setItems(addresses.toTypedArray()) { _, index ->
+                            detail.setText(addresses[index])
+                            detail.setSelection(detail.text.length)
+                            updateAddress()
+                        }
+                        .setNegativeButton("Conserver ma saisie", null)
+                        .show()
+                }
+            }
+        }
+        parent.label("Les mots recherchés sont transmis au service public de géocodage IGN.", 12f, Palette.muted)
         updateAddress()
     }
 
@@ -616,7 +667,7 @@ class MainActivity : AppCompatActivity() {
         receipt.label(statusLabel(status), 16f)
         if (status == "PENDING") {
             receipt.space(6)
-            receipt.label("Phoenix LTS vous recontactera pour le prix et la disponibilité.", 15f, Palette.muted)
+            receipt.label("Demande enregistrée dans Firebase, mais l’e-mail n’est pas encore confirmé. Consultez « Mes demandes » pour suivre sa transmission.", 15f, Palette.muted)
         }
         column.space(16)
         column.action("Voir mes demandes", true) { render(Screen.HISTORY) }
@@ -771,7 +822,7 @@ class MainActivity : AppCompatActivity() {
         else "Les demandes envoyées sont hébergées par Firebase. Le service de réservation reçoit les informations utiles au trajet. Si vous activez les notifications, un identifiant technique permet de prévenir cet appareil.", 15f)
         info.space(10)
         info.label(if (BuildConfig.GOOGLE_MAIL)
-            "Les suggestions de communes et de gares sont intégrées à l’application. Si vous ouvrez l’itinéraire dans Google Maps, Google reçoit le départ et l’arrivée."
+            "Les suggestions de communes sont intégrées à l’application. Si vous lancez une recherche d’adresse, les mots saisis sont transmis à la Géoplateforme IGN. Si vous ouvrez l’itinéraire dans Google Maps, Google reçoit le départ et l’arrivée."
         else "La recherche d’adresses et l’itinéraire transmettent les adresses concernées à Google Maps. Vous pouvez aussi saisir vos adresses à la main.", 15f)
         info.space(10)
         info.label("Pour exercer vos droits d’accès, de rectification ou d’effacement, contactez Phoenix LTS via la rubrique Contact.", 15f)
@@ -869,7 +920,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun errorMessage(error: Exception?): String =
         if ((error as? FirebaseFirestoreException)?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-            "L’envoi n’a pas été autorisé. Si vous venez d’envoyer une demande, attendez une minute puis réessayez."
+            "Firestore a refusé l’enregistrement. Les règles de sécurité V20 doivent être déployées sur Firebase avant les nouvelles demandes tarifées. Vérifiez « Mes demandes » avant de réessayer afin d’éviter un doublon."
         } else when ((error as? FirebaseFunctionsException)?.code) {
             FirebaseFunctionsException.Code.INVALID_ARGUMENT -> "Revérifiez les champs et le créneau."
             FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> "Trop de demandes récentes. Réessayez plus tard."
