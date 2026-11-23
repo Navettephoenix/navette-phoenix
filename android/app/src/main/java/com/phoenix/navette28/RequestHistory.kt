@@ -10,6 +10,9 @@ import java.util.concurrent.TimeUnit
 internal data class RequestSummary(
     val reference: String, val status: String?, val service: String? = null,
     val departure: String? = null, val arrival: String? = null, val date: String? = null, val time: String? = null,
+    val pricingType: String? = null, val pricingSector: String? = null,
+    val pricingZone: Int? = null, val passengers: Int? = null,
+    val pricePerPassenger: Int? = null, val priceTotal: Int? = null,
 )
 
 internal fun statusLabel(status: String?): String = when (status) {
@@ -68,6 +71,14 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                 }
                 if (!entry.departure.isNullOrBlank()) card.label("Départ · ${entry.departure}", 15f)
                 if (!entry.arrival.isNullOrBlank()) card.label("Arrivée · ${entry.arrival}", 15f)
+                card.space(7)
+                if (entry.pricingType == "FIXED" && entry.pricingZone != null &&
+                    entry.pricePerPassenger != null && entry.passengers != null && entry.priceTotal != null) {
+                    card.label("Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)", 14f)
+                    card.label("Tarif estimé : ${entry.priceTotal} €", 18f, Palette.sun, bold = true)
+                } else if (entry.pricingType == "QUOTE") {
+                    card.label("Tarif sur devis", 16f, Palette.sun, bold = true)
+                }
                 card.space(6)
                 card.label(statusLabel(entry.status), 15f, Palette.sun, bold = true)
                 card.label(entry.reference, 14f, Palette.muted).setTextIsSelectable(true)
