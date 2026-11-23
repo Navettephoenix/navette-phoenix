@@ -12,7 +12,7 @@ const fixture = {
   name: 'Passager fictif', phone: '0600000000', email: 'client@example.test', needs: '', notes: '',
 };
 
-function sandbox({ quota = 10, conflict = false, providerError = false } = {}) {
+function sandbox({ quota = 10, conflict = false, providerError = false, priced = false } = {}) {
   const mail = [];
   const states = [];
   const project = 'demo-navette';
@@ -24,6 +24,21 @@ function sandbox({ quota = 10, conflict = false, providerError = false } = {}) {
       createdAt: { timestampValue: '2099-01-12T10:00:00Z' },
       passengers: { integerValue: '2' }, luggage: { integerValue: '1' },
       consent: { booleanValue: true },
+      ...(priced ? {
+        departure: { stringValue: 'Digny' },
+        arrival: { stringValue: 'Senonches' },
+        departureCommune: { stringValue: 'Digny' },
+        arrivalCommune: { stringValue: 'Senonches' },
+        departureDetail: { stringValue: '' },
+        arrivalDetail: { stringValue: '' },
+        pricingType: { stringValue: 'FIXED' },
+        pricingSector: { stringValue: 'FORETS_DU_PERCHE' },
+        pricingZone: { integerValue: '2' },
+        pricePerPassenger: { integerValue: '6' },
+        priceOneWay: { integerValue: '18' },
+        priceTotal: { integerValue: '36' },
+        passengers: { integerValue: '3' },
+      } : {}),
     },
   };
   let status = 'PENDING';
@@ -98,6 +113,15 @@ test('calcule et transmet le tarif forfaitaire réel avec le nombre de passagers
   assert.equal(check('SAINT-ELIPH', 'fontaine simon', true, 2).total, 24);
   assert.equal(check('Senonches', 'La Loupe', false, 1), null);
   assert.equal(check('Autre commune', 'Senonches', false, 1), null);
+});
+
+test('envoie un e-mail contenant le total et la zone, vérifiés par le relais', () => {
+  const relay = sandbox({ priced: true });
+  relay.run();
+  assert.equal(relay.mail.length, 1);
+  assert.match(relay.mail[0].body, /zone 2/);
+  assert.match(relay.mail[0].body, /18 € le trajet/);
+  assert.match(relay.mail[0].body, /36 € au total/);
 });
 
 test('garde les demandes en attente si le quota est épuisé', () => {
