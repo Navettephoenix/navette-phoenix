@@ -23,6 +23,24 @@ Total = prix unitaire × nombre de passagers (1 à 4) × (2 pour un aller-retour
 
 Le prix est **estimatif et soumis à confirmation du service de réservation**. Aucun paiement n'est intégré.
 
+## Trajets dans une même zone
+
+Le tarif **ne dépend pas du passage par Senonches ou La Loupe** : pour deux communes classées dans la même zone et le même secteur, on facture simplement cette zone **par passager**. Si les zones diffèrent, on applique la plus élevée. Le calcul utilise `maxOf(zoneDépart, zoneArrivée)` : deux communes de zone 2 donnent donc zone 2, **6 € par passager**.
+
+| Exemple de trajet | Zone | Passagers | Aller-retour | Prix |
+|---|---:|---:|---|---:|
+| Digny → La Framboisière | 2 | 3 | Non | 18 € |
+| La Chapelle-Fortin → Digny | 2 | 3 | Oui | 36 € |
+| Jaudrais → Lamblore | 3 | 2 | Non | 16 € |
+| La Ferté-Vidame → La Saucelle | 4 | 4 | Oui | 80 € |
+| Manou → Montireau | 3 | 3 | Non | 24 € |
+| Combres → Frazé | 4 | 2 | Non | 20 € |
+| Senonches (mairie) → Senonches (gare) | 1 | 2 | Non | 10 € |
+
+Les trajets au sein d'une même commune nécessitent deux lieux de prise en charge et de dépose différents ; sinon la validation refuse les adresses identiques.
+
+**Correctif de compilation du 23 novembre 2026** : `PricingCalculator` est public afin que la propriété `Booking.pricing` ne révèle plus un type interne. Les tests Kotlin, Firebase et Apps Script incluent désormais les trajets dans une même zone. Recompiler après `git pull`.
+
 ## Mise en service — ordre impératif
 
 1. **Synchroniser d'abord les règles Firestore** : depuis `android/firebase`, lancer avec le compte autorisé `firebase deploy --only firestore --project navette-phoenix`. Attendre le succès avant de tester l'envoi de l'APK V20 : sinon le serveur rejette ses nouveaux champs.
