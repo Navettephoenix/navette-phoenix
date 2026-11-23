@@ -37,3 +37,9 @@ Le dépôt contient désormais `diagnostiquerNavettePhoenix` dans `google-apps-s
 5. Si `PENDING` est supérieur à zéro et le quota disponible, lancer `relayGoogleMailRequests` et contrôler une demande par sa référence. Ne pas recréer la même réservation pour tester le relais.
 
 Le diagnostic ne garantit pas qu'un message a été distribué ou reçu, ni que la configuration du compte et les autorisations Firestore sont correctes. La mise en service n'est validée qu'après un test avec référence identique dans Firestore, le suivi Android et la boîte destinataire.
+
+## Vérification de réception du 23 novembre 2026
+
+Une capture de la boîte Gmail de réservation officielle a confirmé à 04 h 19 (heure de Paris) la réception d'un courriel « Navette Phoenix 28 · Demande de navette », comprenant la référence NP, les lieux, l'horaire, le nombre de passagers et les coordonnées de contact. La fonction d'installation Apps Script a également affiché « Relais actif, verification des demandes toutes les cinq minutes. » avec exécution terminée.
+
+**Vérifié :** une transmission réelle du relais Apps Script jusqu'à la boîte de réception. **Encore à vérifier :** le statut `SENT` de la même référence dans « Mes demandes » sur Android, les tests de non-doublon en production, la compilation de la dernière interface, et le bundle signé/contrôlé par Play Console. Ne pas placer de données personnelles de réservation dans ce dépôt public.
