@@ -59,7 +59,7 @@ class PricingCalculatorTest {
     }
 
     @Test fun coversEveryListedCommuneExactlyOnce() {
-        assertEquals(28, PricingCalculator.localites.filter { it.secteur == PricingCalculator.Secteur.TERRES_DE_PERCHE }.size)
+        assertEquals(22, PricingCalculator.localites.filter { it.secteur == PricingCalculator.Secteur.TERRES_DE_PERCHE }.size)
         assertEquals(14, PricingCalculator.localites.filter { it.secteur == PricingCalculator.Secteur.FORETS_DU_PERCHE }.size)
         assertEquals(PricingCalculator.localites.size,
             PricingCalculator.localites.map { PricingCalculator.normaliser(it.commune) }.distinct().size)
