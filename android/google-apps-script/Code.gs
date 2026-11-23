@@ -377,6 +377,7 @@ function diagnostiquerNavettePhoenix() {
     recipientConfigured: true,
     activeRelayTriggers: triggers.length,
     remainingDailyMailQuota: MailApp.getRemainingDailyQuota(),
+    customerReceiptsEnabled: ENABLE_CUSTOMER_RECEIPTS_,
     countsFirst100: counts,
     action: triggers.length === 0
       ? 'Installer le déclencheur relayGoogleMailRequests (toutes les cinq minutes).'
@@ -388,6 +389,34 @@ function diagnostiquerNavettePhoenix() {
   };
   console.log(JSON.stringify(report));
   return report;
+}
+
+/**
+ * Aperçu local sans envoi ni connexion Firestore.
+ * Vérifie uniquement le contenu non contractuel du futur accusé client.
+ */
+function testerAccuseClientSansEnvoi() {
+  const id = '12345678-1234-4123-8123-123456789012';
+  const document = { fields: {
+    email: { stringValue: 'client@example.test' },
+    service: { stringValue: 'NAVETTE' },
+    departure: { stringValue: 'Senonches · Mairie' },
+    arrival: { stringValue: 'La Loupe · Gare' },
+    date: { stringValue: '2027-04-16' },
+    time: { stringValue: '10:15' }
+  } };
+  const message = customerReceiptMessage_(document, id);
+  if (!message || !message.subject.includes('NP-')
+      || !message.body.includes('EN ATTENTE DE CONFIRMATION')
+      || !message.htmlBody.includes('EN ATTENTE DE CONFIRMATION')) {
+    throw new Error('Le modèle d’accusé client n’est pas conforme.');
+  }
+  console.log(JSON.stringify({
+    result: 'Modèle client vérifié sans envoi',
+    enabled: ENABLE_CUSTOMER_RECEIPTS_,
+    noEmailSent: true
+  }));
+  return true;
 }
 
 /** Même grille par commune que PricingCalculator.kt, recalculée côté relais. */
