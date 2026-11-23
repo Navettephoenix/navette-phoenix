@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     private var privacyOrigin = Screen.HOME
     private var beforeEdit: Bundle? = null
     private var feedback = FormFeedback()
+    private lateinit var page: LinearLayout
     private lateinit var scroll: ScrollView
     private lateinit var column: LinearLayout
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -157,7 +158,7 @@ class MainActivity : AppCompatActivity() {
         column.setPadding(dp(20), dp(14), dp(20), dp(24))
 
         // La navigation reste fixe au-dessus du contenu défilant, y compris sur Tarifs.
-        val page = LinearLayout(this).apply {
+        page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Palette.paper)
         }
@@ -378,7 +379,12 @@ class MainActivity : AppCompatActivity() {
         column.space(12)
         column.navigationLink("Consulter les tarifs par zones", R.drawable.ic_devis) { render(Screen.TARIFFS) }
         column.space(8)
-        column.action(if (beforeEdit == null) "Continuer" else "Enregistrer les modifications", true) {
+        // Action toujours visible, hors du contenu défilant et au-dessus de la navigation Android.
+        val footer = column().apply {
+            setPadding(dp(20), dp(10), dp(20), dp(10))
+            setBackgroundColor(Palette.paper)
+        }
+        footer.action(if (beforeEdit == null) "Continuer" else "Enregistrer les modifications", true) {
             val issue = booking().validateTrip(returnRequested = roundTrip)
             when {
                 issue != null -> feedback.show(issue)
@@ -386,6 +392,7 @@ class MainActivity : AppCompatActivity() {
                 else -> render(Screen.CONTACT_FORM)
             }
         }
+        page.addView(footer, LinearLayout.LayoutParams(-1, -2))
     }
 
     /** A commune is selected from a searchable list; detailed pickup points remain free-form. */
@@ -457,8 +464,15 @@ class MainActivity : AppCompatActivity() {
             14f, Palette.muted
         )
         parent.space(2)
+        val searchOptions = column()
+        parent.addView(searchOptions, LinearLayout.LayoutParams(-1, -2))
+        searchOptions.visibility = View.GONE
+        val toggleSearch = parent.navigationLink("Recherche d’adresse (optionnelle)  +", R.drawable.ic_destinations) {
+            val expanded = searchOptions.visibility != View.VISIBLE
+            searchOptions.visibility = if (expanded) View.VISIBLE else View.GONE
+        }
         lateinit var searchButton: MaterialButton
-        searchButton = parent.navigationLink("Rechercher une adresse (IGN)", R.drawable.ic_destinations) {
+        searchButton = searchOptions.navigationLink("Rechercher une adresse (IGN)", R.drawable.ic_destinations) {
             val query = detail.text.toString().trim()
             if (value(communeKey).isBlank()) {
                 feedback.show(BookingIssue(key, "Choisissez d’abord votre commune."))
@@ -501,7 +515,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        parent.label("Recherche facultative · Service public IGN", 12f, Palette.muted)
+        searchOptions.label("Les termes saisis sont transmis au service public IGN.", 14f, Palette.muted)
         updateAddress()
     }
 
