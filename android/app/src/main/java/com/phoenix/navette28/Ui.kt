@@ -21,12 +21,12 @@ import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 
 object Palette {
-    const val paper = 0xFFFAF6F2.toInt()
-    const val ink = 0xFF251D19.toInt()
-    const val muted = 0xFF64554C.toInt()
-    const val line = 0xFFE5D6CC.toInt()
+    const val paper = 0xFFFAF7F4.toInt()
+    const val ink = 0xFF211A17.toInt()
+    const val muted = 0xFF5C4D44.toInt()
+    const val line = 0xFFE8D8CE.toInt()
     const val sun = 0xFF9B2A0D.toInt()
-    const val mist = 0xFFFFE9DC.toInt()
+    const val mist = 0xFFFFE6D8.toInt()
     const val error = 0xFF9D2119.toInt()
 }
 
@@ -61,7 +61,7 @@ fun LinearLayout.label(
 
 fun LinearLayout.panel(title: String? = null): LinearLayout = context.column().also {
     it.background = context.surface(Color.WHITE, border = true)
-    it.setPadding(context.dp(18), context.dp(18), context.dp(18), context.dp(18))
+    it.setPadding(context.dp(18), context.dp(20), context.dp(18), context.dp(20))
     addView(it, -1, -2)
     if (title != null) {
         it.label(title, 20f, bold = true, heading = true)
@@ -83,7 +83,7 @@ fun LinearLayout.stepHeader(title: String, step: Int, section: String) {
     }
     addView(track, -1, -2)
     space(14)
-    label(title, 29f, bold = true, heading = true)
+    label(title, 28f, bold = true, heading = true)
     space(14)
 }
 
@@ -93,7 +93,7 @@ fun LinearLayout.action(
     MaterialButton(context).apply {
         text = title
         isAllCaps = false
-        textSize = 16.5f
+        textSize = 17f
         isSingleLine = false
         val enabled = intArrayOf(android.R.attr.state_enabled)
         val states = arrayOf(enabled, intArrayOf())
@@ -113,7 +113,7 @@ fun LinearLayout.action(
             iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
             iconPadding = context.dp(9)
         }
-        minHeight = context.dp(56)
+        minHeight = context.dp(58)
         setPadding(context.dp(16), context.dp(12), context.dp(16), context.dp(12))
         gravity = Gravity.CENTER
         setOnClickListener { call() }
@@ -207,7 +207,7 @@ fun LinearLayout.field(
         }
         filters = arrayOf(InputFilter.LengthFilter(limit))
         if (this is AutoCompleteTextView) setText(value, false) else setText(value)
-        setPaddingRelative(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
+        setPaddingRelative(context.dp(16), context.dp(13), context.dp(16), context.dp(13))
         textSize = 17f
         minHeight = context.dp(60)
     }
@@ -242,9 +242,9 @@ fun LinearLayout.pickerField(
         isClickable = true
         isLongClickable = false
         isCursorVisible = false
-        minHeight = context.dp(56)
+        minHeight = context.dp(58)
         textSize = 17f
-        setPaddingRelative(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
+        setPaddingRelative(context.dp(16), context.dp(13), context.dp(16), context.dp(13))
         setOnClickListener { pick() }
         contentDescription = if (selectedValue.isEmpty()) "Choisir $title" else "$title : $selectedValue"
     }
