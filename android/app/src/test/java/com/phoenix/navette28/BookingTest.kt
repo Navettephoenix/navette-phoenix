@@ -90,6 +90,15 @@ class BookingTest {
         assertEquals(0xFF17623B.toInt(), statusTone("CONFIRMED"))
     }
 
+    @Test fun shortHistoryStatusDoesNotConfuseTransmissionWithConfirmation() {
+        assertEquals("À transmettre", statusShortLabel("PENDING"))
+        assertEquals("En attente de confirmation", statusShortLabel("SENT"))
+        assertEquals("En attente de confirmation", statusShortLabel("RECEIVED"))
+        assertEquals("Réservation confirmée", statusShortLabel("CONFIRMED"))
+        assertEquals("Envoi impossible", statusShortLabel("INVALID"))
+        assertEquals("Statut à vérifier", statusShortLabel(null))
+    }
+
     @Test fun unknownStatusNeverClaimsConfirmation() {
         assertEquals("Statut à vérifier auprès de Phoenix LTS", statusLabel("UNKNOWN"))
         assertEquals(Palette.muted, statusTone(null))
