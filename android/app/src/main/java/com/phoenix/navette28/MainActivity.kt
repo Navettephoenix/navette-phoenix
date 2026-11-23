@@ -668,31 +668,26 @@ class MainActivity : AppCompatActivity() {
     private fun tariffs() {
         column.label("Nos tarifs", 28f, bold = true, heading = true)
         column.space(7)
-        column.label("Tarifs par zones · Secteurs Forêts du Perche et Terres de Perche", 15f, Palette.muted)
+        column.label("Tarifs par passager et par trajet simple · Forêts du Perche et Terres de Perche", 15f, Palette.muted)
         column.space(12)
 
-        fun sector(title: String, centre: String) {
+        fun sector(title: String, centre: String, secteur: PricingCalculator.Secteur) {
             val panel = column.panel(title)
             panel.label("Point central : $centre", 16f, Palette.sun, bold = true)
             panel.space(9)
-            for (zone in Tariffs.zones) {
-                val lower = when (zone.number) {
-                    1 -> "0 à 3 km"
-                    2 -> "3 à 8 km"
-                    3 -> "8 à 13 km"
-                    else -> "13 à 20 km"
+            for (zone in 1..4) {
+                val price = listOf(5, 6, 8, 10)[zone - 1]
+                panel.label("Zone $zone · $price € par passager", 16f, bold = true)
+                panel.space(5)
+                val places = PricingCalculator.localites.filter {
+                    it.secteur == secteur && it.zone == zone
+                }.joinToString(", ") { it.commune }
+                panel.label(places, 14f, Palette.muted)
+                panel.space(9)
+                if (zone != 4) {
+                    panel.rule()
+                    panel.space(9)
                 }
-                val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-                val left = line.label("Zone ${zone.number} · $lower", 15f).apply {
-                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-                }
-                line.label("${zone.oneWayEuros} €", 18f, Palette.sun, bold = true).apply {
-                    layoutParams = LinearLayout.LayoutParams(-2, -2)
-                }
-                panel.addView(line, -1, -2)
-                panel.space(8)
-                if (zone.number != 4) panel.rule()
-                if (zone.number != 4) panel.space(8)
             }
             panel.rule()
             panel.space(9)
@@ -700,14 +695,16 @@ class MainActivity : AppCompatActivity() {
             column.space(12)
         }
 
-        sector("Forêts du Perche", "Senonches")
-        sector("Terres de Perche", "La Loupe")
+        sector("Forêts du Perche", "Senonches", PricingCalculator.Secteur.FORETS_DU_PERCHE)
+        sector("Terres du Perche", "La Loupe", PricingCalculator.Secteur.TERRES_DE_PERCHE)
         val conditions = column.panel("Comment fonctionne la tarification ?")
-        conditions.label("Tarifs indiqués pour un trajet simple, selon la distance routière réelle et l’adresse exacte.", 15f)
+        conditions.label("Pour deux communes du même secteur, la zone applicable est la plus élevée des deux.", 15f)
         conditions.space(7)
-        conditions.label("Aller-retour = deux trajets. Exemple : zone 2, 6 € l’aller et 12 € l’aller-retour.", 15f)
+        conditions.label("Total = tarif par passager × passagers (1 à 4) × deux pour un aller-retour.", 15f)
         conditions.space(7)
-        conditions.label("Ces montants sont indicatifs : Phoenix LTS valide le tarif, les horaires et la disponibilité avant confirmation.", 15f, Palette.muted)
+        conditions.label("Les bagages n'ajoutent aucun supplément. Entre secteurs ou hors liste : sur devis.", 15f)
+        conditions.space(7)
+        conditions.label("Tarif estimé, confirmé par le service de réservation.", 15f, Palette.muted)
         column.space(12)
         column.action("Demander une navette", true, R.drawable.ic_navette) { start(Service.NAVETTE) }
         column.space(7)
