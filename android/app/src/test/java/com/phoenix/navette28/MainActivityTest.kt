@@ -60,7 +60,7 @@ class MainActivityTest {
             search.performClick()
             assertTrue(window.labels().contains("Choisissez d’abord votre commune."))
             window.chooseCommune("Départ", "Senonches")
-            val detail = window.field("Départ · Lieu précis (gare, mairie, adresse…)").editText!!
+            val detail = window.field("Départ · Adresse précise").editText!!
             detail.setText("ru")
             search.performClick()
             assertEquals("Saisissez au moins trois caractères avant de rechercher.", detail.error.toString())
@@ -119,10 +119,10 @@ class MainActivityTest {
             assertTrue(window.labels().containsAll(listOf("4 passagers · 0 bagage", "Client démo", "Tarif sur devis")))
             window.button("Modifier le trajet").performClick()
             window.chooseCommune("Arrivée", "Autre commune")
-            window.field("Arrivée · Lieu précis (gare, mairie, adresse…)").editText!!.setText("Gare de Chartres")
+            window.field("Arrivée · Adresse précise").editText!!.setText("Gare de Chartres")
             controller.recreate()
             window = controller.get().window.decorView
-            assertEquals("Gare de Chartres", window.field("Arrivée · Lieu précis (gare, mairie, adresse…)").editText!!.text.toString())
+            assertEquals("Gare de Chartres", window.field("Arrivée · Adresse précise").editText!!.text.toString())
             window.button("Enregistrer les modifications").performClick()
             assertTrue(window.labels().containsAll(listOf("Gare de Chartres", "client@example.test")))
             window.button("Modifier mes coordonnées").performClick()
@@ -139,9 +139,9 @@ class MainActivityTest {
             val window = controller.get().window.decorView
             window.button("Réserver une navette").performClick()
             window.chooseCommune("Départ", "Autre commune")
-            window.field("Départ · Lieu précis (gare, mairie, adresse…)").editText!!.setText("8 rue de l’Église & du Parc")
+            window.field("Départ · Adresse précise").editText!!.setText("8 rue de l’Église & du Parc")
             window.chooseCommune("Arrivée", "La Loupe")
-            window.field("Arrivée · Lieu précis (gare, mairie, adresse…)").editText!!.setText("Gare")
+            window.field("Arrivée · Adresse précise").editText!!.setText("Gare")
             assertTrue(window.labels().contains("Tarif sur devis"))
             window.button("Voir dans Google Maps").performClick()
             val uri = shadowOf(controller.get()).nextStartedActivity.data!!
@@ -163,7 +163,7 @@ class MainActivityTest {
             assertFalse(window.button("Envoi en cours…").isEnabled)
             result.setResult(SubmissionReceipt("NP-DEMO", "PENDING", false))
             shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(window.labels().containsAll(listOf("Demande enregistrée", "NP-DEMO", statusLabel("PENDING"))))
+            assertTrue(window.labels().containsAll(listOf("Demande enregistrée", "NP-DEMO", "◷  2. Transmission en attente")))
             assertNull(submission.pending)
             controller.recreate()
             assertTrue(controller.get().window.decorView.labels().contains("NP-DEMO"))
