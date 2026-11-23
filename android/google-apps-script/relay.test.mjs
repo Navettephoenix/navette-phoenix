@@ -115,6 +115,20 @@ test('calcule et transmet le tarif forfaitaire réel avec le nombre de passagers
   assert.equal(check('Autre commune', 'Senonches', false, 1), null);
 });
 
+test('le relais facture deux communes dans la même zone au tarif unitaire de cette zone', () => {
+  const calculate = runInNewContext(source + '\nbookingPrice_;', {});
+  const zone2 = calculate('Digny', 'La Framboisière', false, 3);
+  assert.equal(zone2.zone, 2);
+  assert.equal(zone2.price, 6);
+  assert.equal(zone2.oneWay, 18);
+  assert.equal(zone2.total, 18);
+  assert.equal(calculate('La Chapelle-Fortin', 'Digny', true, 3).total, 36);
+  assert.equal(calculate('Jaudrais', 'Lamblore', false, 2).total, 16);
+  assert.equal(calculate('La Ferté-Vidame', 'La Saucelle', true, 4).total, 80);
+  assert.equal(calculate('Manou', 'Montireau', false, 3).total, 24);
+  assert.equal(calculate('Senonches', 'Senonches', false, 2).total, 10);
+});
+
 test('envoie un e-mail contenant le total et la zone, vérifiés par le relais', () => {
   const relay = sandbox({ priced: true });
   relay.run();
