@@ -90,7 +90,7 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                 card.space(6)
                 card.label(statusLabel(entry.status), 16f, statusTone(entry.status), bold = true)
                 card.space(5)
-                card.label("Référence · ${entry.reference}", 15f, Palette.muted).setTextIsSelectable(true)
+                card.label(entry.reference, 15f, Palette.muted).setTextIsSelectable(true)
                 cards.space(10)
             }
         }
