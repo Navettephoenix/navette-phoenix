@@ -1,9 +1,12 @@
+// Boîte officielle des réservations Phoenix LTS (ne dépend pas des propriétés privées).
+const RESERVATION_MAIL_TO_ = 'caro.resanavettephoenix@gmail.com';
+
 function relayGoogleMailRequests() {
   const properties = PropertiesService.getScriptProperties();
-  const project = properties.getProperty('FIREBASE_PROJECT_ID') || '';
-  const recipient = (properties.getProperty('RESERVATION_MAIL_TO') || '').trim();
+  const project = (properties.getProperty('FIREBASE_PROJECT_ID') || 'navette-phoenix').trim();
+  const recipient = RESERVATION_MAIL_TO_;
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) || !mailAddress_(recipient)) {
-    throw new Error('Configurez le projet Firebase et la boîte de réservation dans les propriétés du script.');
+    throw new Error('Identifiant du projet Firebase invalide.');
   }
 
   // Un seul déclencheur traite la file. Le verrou se libère à la fin de l'exécution.
@@ -150,10 +153,10 @@ function firestore_(path, method, token, body, allowConflict) {
  */
 function diagnostiquerNavettePhoenix() {
   const properties = PropertiesService.getScriptProperties();
-  const project = (properties.getProperty('FIREBASE_PROJECT_ID') || '').trim();
-  const recipient = (properties.getProperty('RESERVATION_MAIL_TO') || '').trim();
+  const project = (properties.getProperty('FIREBASE_PROJECT_ID') || 'navette-phoenix').trim();
+  const recipient = RESERVATION_MAIL_TO_;
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) || !mailAddress_(recipient)) {
-    throw new Error('Propriétés FIREBASE_PROJECT_ID ou RESERVATION_MAIL_TO manquantes / invalides.');
+    throw new Error('Projet Firebase ou adresse de réception invalides.');
   }
   const triggers = ScriptApp.getProjectTriggers()
     .filter(trigger => trigger.getHandlerFunction() === 'relayGoogleMailRequests');
