@@ -2,6 +2,38 @@
 
 > Document de continuité. Ne pas modifier la logique de réservation, Firebase, les e-mails ou la configuration de publication sans tests. Aucun code applicatif n'a été modifié par cette prise de notes.
 
+## POINT DE REPRISE PRIORITAIRE — Pause après contrôle Google Apps Script (23/11/2026)
+
+**Ce bloc est la référence actuelle et remplace les indications de statut plus anciennes dans le journal ci-dessous. Pause demandée par l'utilisateur, sans action de production supplémentaire.**
+
+### Réalisé et confirmé par les sorties PowerShell / Apps Script
+
+1. Dépôt `Navettephoenix/navette-phoenix`, branche `refonte-v20-verifiee`, dossier Windows `C:\Users\PC\Documents\NavettePhoenix-V20\android`. Dernier commit du code récupéré localement avant cette mise à jour documentaire : `b7c955b`. Ne pas créer de nouvelle branche ni repartir de zéro.
+2. **Application Android : `BUILD SUCCESSFUL in 15s`** sur `gradlew.bat :app:testDebugUnitTest :app:assembleDebug` après correction de l'import `assertNotNull` (`85052f5`). Java disponible via `C:\Program Files\Android\Android Studio\jbr`, OpenJDK 21.0.8. Il faut souvent remettre `JAVA_HOME` dans la nouvelle fenêtre PowerShell.
+3. **Relais Google Apps Script : 10 tests de simulation réussis** avec `node .\google-apps-script\relay.test.js`. Scénarios : livraison Phoenix LTS unique, accusé client unique, Gmail indisponible, Firestore indisponible après e-mail, quota insuffisant, diagnostic non destructif. Ce sont des tests simulés, pas une preuve d'envoi client réel.
+4. **Firebase : index Firestore déployés avec succès** via `firebase.cmd deploy --only firestore:indexes --project navette-phoenix` depuis `android\firebase`. La première tentative a échoué HTTP 400 car l'index `customerReceiptStatus` avait été déclaré comme index composite monochamp ; corrigé dans `firestore.indexes.json` en `fieldOverrides`, confirmé par **`Deploy complete!`**. Cette commande ne déploie pas le code Google Apps Script.
+5. **Le code Google Apps Script actualisé est en place pour les tests de préactivation** : journal utilisateur à 07:49 indiquant `testerAccuseClientSansEnvoi` réussi, `enabled:false`, `noEmailSent:true`. `verifierActivationAccuseClient` : `technicalPreflightOk:true`, `customerReceiptIndexReady:true`, `activeRelayTriggers:1`, `remainingDailyMailQuota:89`, `estimatedRemainingReservationsWithReceipt:44`, `blockers:[]`.
+6. **CRITIQUE : accusés e-mail clients NON ACTIVÉS** : `ENABLE_CUSTOMER_RECEIPTS_ = false`. Les réservations et e-mails professionnels existants doivent rester inchangés ; il manque encore les validations humaines. Le préflight technique vert ne signifie PAS conformité juridique ni livraison effective d'accusés clients.
+7. Le problème à résoudre à la reprise : l'utilisateur **ne retrouve pas son site `www.navettephoenix.fr` dans Google Sites** afin de mettre à jour `https://www.navettephoenix.fr/politique`. **Ne pas présumer que le site est hébergé/édité via Google Sites.** Identifier d'abord le véritable service d'hébergement ou l'outil qui gère le domaine, l'éditeur ou le compte propriétaire. Ne pas créer un second site ni remplacer le domaine.
+8. La politique de confidentialité publique a été signalée comme possiblement obsolète face à la V20.1 (réservations intégrées, coordonnées et itinéraires dans Firebase, envois transactionnels). Relire/actualiser la page dans le véritable outil du site, avec base légale, durées de conservation, droits, prestataires et envois d'e-mails. Faire valider les informations par Phoenix LTS avant publication.
+9. Après correction et validation de la politique, recontrôler le quota / l'unique déclencheur / l'index / la boîte de réponse. **Seulement ensuite** envisager `ENABLE_CUSTOMER_RECEIPTS_ = true` et faire **une seule réservation contrôlée** vers un e-mail maîtrisé, en vérifiant séparément la boîte Phoenix LTS et la boîte cliente, `mailStatus=SENT` et `customerReceiptStatus=SENT`. Ne jamais forcer un réenvoi pour les états `SENDING` sans vérifier les e-mails reçus.
+10. Projet de publication Play Console **pas encore validé** : pas d'AAB release signé confirmé. Conserver `com.phoenix.navette`, clé d'importation autorisée, versionCode supérieur au maximum Play Console.
+
+### Commandes de reprise après la pause
+
+```powershell
+cd "C:\Users\PC\Documents\NavettePhoenix-V20\android"
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+git pull --ff-only origin refonte-v20-verifiee
+node .\google-apps-script\relay.test.js
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+```
+
+**Point exact de reprise : retrouver l'éditeur/le propriétaire de `navettephoenix.fr` et mettre à jour la page de confidentialité.** L'utilisateur demandait une pause ; ne pas pousser de code, activer le relais ou déclencher d'e-mail sans nouvelle demande.
+
+---
+
 ## Suivi 1 + accusé client 2 — travaux du 23 novembre 2026
 
 - Le relais `android/google-apps-script/Code.gs` est fiabilisé : gardes `PENDING → SENDING → SENT`, dates de transition, priorité aux accusés client déjà en attente, répartition du quota et refus de renvoyer automatiquement un `SENDING`. Le comportement Google actif n'a **pas** été modifié : le Code.gs GitHub doit être copié manuellement après sauvegarde.
