@@ -9,6 +9,9 @@ import android.widget.LinearLayout
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.android.material.button.MaterialButton
+import java.util.Date
+import java.text.DateFormat
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 internal data class RequestSummary(
@@ -53,6 +56,7 @@ internal fun statusTone(status: String?): Int = when (status) {
 
 internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List<RequestSummary>>)?) {
     val state = label("", 16f, Palette.muted).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
+    val lastUpdated = label("", 14f, Palette.muted).apply { visibility = View.GONE }
     val reference = latest?.let {
         label(context.getString(R.string.latest_reference, it), 15f).apply { setTextIsSelectable(true) }
     }
@@ -80,6 +84,8 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
             cards.removeAllViews()
             val entries = task.result
             state.setText(if (entries.isEmpty()) R.string.history_empty else R.string.history_recent)
+            lastUpdated.text = "Actualisé à " + DateFormat.getTimeInstance(DateFormat.SHORT, Locale.FRANCE).format(Date())
+            lastUpdated.visibility = View.VISIBLE
             reference?.visibility = if (entries.any { it.reference == latest }) View.GONE else View.VISIBLE
             for (entry in entries) {
                 val title = when (entry.service) {
