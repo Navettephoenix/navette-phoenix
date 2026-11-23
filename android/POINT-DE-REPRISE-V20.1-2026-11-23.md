@@ -2,6 +2,18 @@
 
 > Document de continuité. Ne pas modifier la logique de réservation, Firebase, les e-mails ou la configuration de publication sans tests. Aucun code applicatif n'a été modifié par cette prise de notes.
 
+## Suivi 1 + accusé client 2 — travaux du 23 novembre 2026
+
+- Le relais `android/google-apps-script/Code.gs` est fiabilisé : gardes `PENDING → SENDING → SENT`, dates de transition, priorité aux accusés client déjà en attente, répartition du quota et refus de renvoyer automatiquement un `SENDING`. Le comportement Google actif n'a **pas** été modifié : le Code.gs GitHub doit être copié manuellement après sauvegarde.
+- La fonction `diagnostiquerNavettePhoenix` montre les volumes, l'âge des demandes bloquées et des références, sans coordonnées personnelles. `verifierActivationAccuseClient` contrôle index, quota, déclencheur et modèle sans envoyer d'e-mail.
+- L'application affiche, dans « Mes demandes », un avertissement après **20 minutes** de `PENDING`, ou après **20 minutes** en `SENDING` lorsque l'horodatage de traitement est connu. Jamais d'auto-renvoi.
+- Le modèle d'accusé client présente trajet, aller/retour, passagers et tarif indicatif et mentionne **EN ATTENTE DE CONFIRMATION**. La variable `ENABLE_CUSTOMER_RECEIPTS_ = false` reste volontairement désactivée dans GitHub et dans le flux non modifié.
+- Le banc de tests `android/google-apps-script/relay.test.js` couvre **10 scénarios simulés**, vérifiés sans Gmail ni Firestore réels, notamment panne après envoi et quota faible.
+- Les **deux nouveaux tests Android** n'ont pas encore été exécutés sur le PC depuis ces modifications ; demander `git pull`, `node .\\google-apps-script\\relay.test.js`, puis `.\\gradlew.bat :app:testDebugUnitTest :app:assembleDebug`.
+- **Instructions complètes d'activation** et précautions dans `android/MISE-EN-SERVICE.md` : déployer l'index `customerReceiptStatus`, mettre à jour le Code.gs réel avec drapeau désactivé, tester, valider la confidentialité, puis seulement activer et faire une unique réservation test.
+
+---
+
 ## Suite des améliorations lancée après cette sauvegarde
 
 Les commits postérieurs à `961232e` ajoutent de façon **progressive** :
