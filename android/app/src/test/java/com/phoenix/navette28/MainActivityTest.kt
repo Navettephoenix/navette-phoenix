@@ -72,14 +72,14 @@ class MainActivityTest {
             window.button("Demander un devis").performClick()
             window.field("Départ").editText!!.setText("Senonches")
             window.field("Arrivée").editText!!.setText("Gare de La Loupe")
-            window.button("Date du départ").performClick()
+            window.field("Date du départ").editText!!.performClick()
             val day = LocalDate.now(Booking.PARIS).plusDays(7)
             val datePicker = ShadowDialog.getLatestDialog() as DatePickerDialog
             datePicker.datePicker.updateDate(day.year, day.monthValue - 1, day.dayOfMonth)
             datePicker.getButton(DialogInterface.BUTTON_POSITIVE).performClick()
             shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(window.labels().contains("Date du départ · ${Booking.displayDate(day.toString())}"))
-            window.button("Heure de prise en charge").performClick()
+            assertEquals(Booking.displayDate(day.toString()), window.field("Date du départ").editText!!.text.toString())
+            window.field("Heure de prise en charge").editText!!.performClick()
             val timePicker = ShadowDialog.getLatestDialog() as TimePickerDialog
             timePicker.window!!.decorView.descendants().filterIsInstance<TimePicker>().single().apply {
                 hour = 10
@@ -87,7 +87,7 @@ class MainActivityTest {
             }
             timePicker.getButton(DialogInterface.BUTTON_POSITIVE).performClick()
             shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(window.labels().contains("Heure de prise en charge · 10:15"))
+            assertEquals("10:15", window.field("Heure de prise en charge").editText!!.text.toString())
             val increase = window.descendants().single { it.contentDescription == "Ajouter un passager" }
             repeat(3) { increase.performClick() }
             assertFalse(increase.isEnabled)
