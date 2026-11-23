@@ -1,3 +1,4 @@
+import { calculatePrice } from './pricing.mjs';
 import { createHash } from 'node:crypto';
 
 const paris = new Intl.DateTimeFormat('sv-SE', {
@@ -59,6 +60,20 @@ export function normalize(data) {
     throw new Error('Le retour doit suivre l’aller');
   }
   if (data.consent !== true) throw new Error('Autorisation requise');
+  const hasNewPricing = Object.prototype.hasOwnProperty.call(data, 'pricingType');
+  let pricing = {};
+  if (hasNewPricing) {
+    const departureCommune = required(data, 'departureCommune', 0, 120);
+    const arrivalCommune = required(data, 'arrivalCommune', 0, 120);
+    const departureDetail = required(data, 'departureDetail', 0, 150);
+    const arrivalDetail = required(data, 'arrivalDetail', 0, 150);
+    const passengers = number(data, 'passengers', 1, 4);
+    pricing = calculatePrice(departureCommune, arrivalCommune, Boolean(returnDate), passengers);
+    for (const [key, expected] of Object.entries(pricing)) {
+      if (data[key] !== expected) throw new Error('Tarif transmis incohérent : ' + key);
+    }
+    pricing = { ...pricing, departureCommune, arrivalCommune, departureDetail, arrivalDetail };
+  }
   return {
     requestId, pickup,
     booking: {
@@ -68,6 +83,7 @@ export function normalize(data) {
       luggage: number(data, 'luggage', 0, 16),
       needs: required(data, 'needs', 0, 300),
       notes: required(data, 'notes', 0, 500),
+      ...pricing,
       consentVersion: 'V20',
     },
     pushToken: required(data, 'pushToken', 0, 512),
@@ -90,6 +106,10 @@ export function formatEmail(value) {
       `Aller (heure de Paris) : ${value.date} à ${value.time}`,
       value.returnDate ? `Retour (heure de Paris) : ${value.returnDate} à ${value.returnTime}` : 'Aller simple',
       `Passagers : ${value.passengers} · Bagages : ${value.luggage}`,
+      value.pricingType === 'FIXED'
+        ? `Tarif estimé : zone ${value.pricingZone} · ${value.pricePerPassenger} € par passager · ${value.priceOneWay} € par trajet · ${value.priceTotal} € au total`
+        : value.pricingType === 'QUOTE' ? 'Tarif sur devis' : '',
+      value.pricingType ? 'Tarif estimé, confirmé par le service de réservation.' : '',
       `Nom : ${value.name}`,
       `Téléphone : ${value.phone}`,
       `E-mail : ${value.email}`,
