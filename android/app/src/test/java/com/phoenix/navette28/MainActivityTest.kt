@@ -209,6 +209,19 @@ class MainActivityTest {
         }
     }
 
+    @Test fun staleTransmissionAdvisesCheckingInsteadOfResending() {
+        val now = 1_900_000_000_000L
+        val old = now - 21 * 60 * 1000L
+        assertNull(transmissionWarning("PENDING", now - 19 * 60 * 1000L, now))
+        assertNull(transmissionWarning("SENT", old, now))
+        assertNull(transmissionWarning("CONFIRMED", old, now))
+        assertNull(transmissionWarning("PENDING", null, now))
+        assertNotNull(transmissionWarning("PENDING", old, now))
+        val ambiguous = transmissionWarning("SENDING", old, now)!!
+        assertTrue(ambiguous.contains("peut-être été envoyé"))
+        assertTrue(ambiguous.contains("avant toute nouvelle demande"))
+    }
+
     @Test fun historyKeepsLastResultsOnErrorAndRefreshesTheirStatus() {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val activity = controller.get()
