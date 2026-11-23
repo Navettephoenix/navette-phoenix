@@ -18,6 +18,29 @@ test('terres du Perche : Saint-Éliph → Fontaine-Simon', () => {
   assert.equal(calculatePrice('SAINT ELIPH', 'fontaine-simon', true, 2).priceTotal, 24);
 });
 
+test('trajets dans la même zone : prix de cette zone par passager', () => {
+  const zone2 = calculatePrice('Digny', 'La Framboisière', false, 3);
+  assert.equal(zone2.pricingZone, 2);
+  assert.equal(zone2.pricePerPassenger, 6);
+  assert.equal(zone2.priceTotal, 18);
+  assert.equal(calculatePrice('Digny', 'La Chapelle-Fortin', true, 3).priceTotal, 36);
+
+  const zone3 = calculatePrice('Jaudrais', 'Lamblore', false, 2);
+  assert.equal(zone3.pricingZone, 3);
+  assert.equal(zone3.pricePerPassenger, 8);
+  assert.equal(zone3.priceTotal, 16);
+
+  const zone4 = calculatePrice('La Ferté-Vidame', 'La Saucelle', true, 4);
+  assert.equal(zone4.pricingZone, 4);
+  assert.equal(zone4.pricePerPassenger, 10);
+  assert.equal(zone4.priceOneWay, 40);
+  assert.equal(zone4.priceTotal, 80);
+
+  assert.equal(calculatePrice('Manou', 'Montireau', false, 3).priceTotal, 24);
+  assert.equal(calculatePrice('Combres', 'Frazé', false, 2).priceTotal, 20);
+  assert.equal(calculatePrice('Senonches', 'Senonches', false, 2).priceTotal, 10);
+});
+
 test('hors zone, entre secteurs et bagages non facturés', () => {
   assert.equal(calculatePrice('Digny', 'La Loupe', false, 2).pricingType, 'QUOTE');
   assert.equal(calculatePrice('Autre commune', 'La Loupe', false, 2).pricingType, 'QUOTE');
