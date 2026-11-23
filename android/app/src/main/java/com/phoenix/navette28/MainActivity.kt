@@ -649,38 +649,41 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun dateControl(parent: LinearLayout, caption: String, key: String) {
-        lateinit var button: MaterialButton
-        button = parent.action(value(key).takeIf(String::isNotEmpty)?.let {
-            getString(R.string.selected_value, caption, Booking.displayDate(it))
-        } ?: caption) {
+        lateinit var field: EditText
+        field = parent.pickerField(caption, value(key).takeIf(String::isNotEmpty)
+            ?.let(Booking::displayDate).orEmpty(), R.drawable.ic_calendar) {
             val today = LocalDate.now(Booking.PARIS)
-            val departure = if (key == "returnDate") runCatching { LocalDate.parse(value("date")) }.getOrNull() else null
+            val departure = if (key == "returnDate") runCatching {
+                LocalDate.parse(value("date"))
+            }.getOrNull() else null
             val earliest = maxOf(today, departure ?: today)
-            val selected = maxOf(earliest, runCatching { LocalDate.parse(value(key)) }.getOrDefault(earliest))
+            val selected = maxOf(earliest, runCatching {
+                LocalDate.parse(value(key))
+            }.getOrDefault(earliest))
             DatePickerDialog(this, { _, year, month, day ->
                 values[key] = LocalDate.of(year, month + 1, day).toString()
-                button.text = getString(R.string.selected_value, caption, Booking.displayDate(value(key)))
+                field.setText(Booking.displayDate(value(key)))
+                field.contentDescription = "$caption : ${Booking.displayDate(value(key))}"
                 feedback.changed(key)
             }, selected.year, selected.monthValue - 1, selected.dayOfMonth).apply {
-                datePicker.minDate = earliest.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                datePicker.minDate = earliest.atStartOfDay(Booking.PARIS).toInstant().toEpochMilli()
             }.show()
         }
-        feedback.control(key, parent, button)
-        parent.space(7)
+        feedback.control(key, parent, field)
     }
 
     private fun timeControl(parent: LinearLayout, caption: String, key: String) {
-        lateinit var button: MaterialButton
-        button = parent.action(value(key).takeIf(String::isNotEmpty)?.let { getString(R.string.selected_value, caption, it) } ?: caption) {
+        lateinit var field: EditText
+        field = parent.pickerField(caption, value(key), R.drawable.ic_clock) {
             val selected = runCatching { LocalTime.parse(value(key)) }.getOrDefault(LocalTime.of(9, 0))
             TimePickerDialog(this, { _, hour, minute ->
                 values[key] = String.format(Locale.ROOT, "%02d:%02d", hour, minute)
-                button.text = getString(R.string.selected_value, caption, value(key))
+                field.setText(value(key))
+                field.contentDescription = "$caption : ${value(key)}"
                 feedback.changed(key)
             }, selected.hour, selected.minute, true).show()
         }
-        feedback.control(key, parent, button)
-        parent.space(7)
+        feedback.control(key, parent, field)
     }
 
     private fun value(key: String) = values[key].orEmpty().trim()
