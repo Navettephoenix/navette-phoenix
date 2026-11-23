@@ -1,3 +1,47 @@
+
+## V20.1 — contrôle qualité avant mise à jour Play Console
+
+**État du dépôt :** améliorations d'interface et du suivi, tests de statuts ajoutés. Le build, les tests instrumentés et la validation sur Play Console doivent encore être exécutés localement. Aucun fichier AAB de production n'est déclaré prêt tant que ces vérifications ne sont pas terminées.
+
+### 1. Synchronisation et tests Android
+
+Depuis `C:\Users\PC\Documents\NavettePhoenix-V20\android` :
+
+```powershell
+git pull --ff-only origin refonte-v20-verifiee
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat :app:clean :app:testDebugUnitTest :app:assembleDebug
+```
+
+Si Android Studio est installé ailleurs, sélectionner son Gradle JDK dans les paramètres ou adapter `JAVA_HOME`. Ne pas publier si une tâche échoue.
+
+### 2. Contrôles fonctionnels manuels
+
+- Accueil, tarifs, destinations, formulaire, récapitulatif, confirmation et historique sur petit et grand écran, avec taille de police Android agrandie.
+- Vérifier les marges, le défilement, la barre d'état, le clavier, les champs de date/heure et les boutons à l'écran.
+- Tester les trajets entre communes, au sein d'une commune, aller simple et aller-retour, tarifs fixes et devis, limites de passagers et bagages.
+- Tester les champs manquants, l'e-mail invalide, la date passée, l'absence de connexion et le retour entre les étapes sans perte des valeurs.
+- **Ne pas soumettre de demande réelle supplémentaire sans nécessité** : les précédents essais ont déjà validé l'arrivée d'un e-mail. Pour une nouvelle vérification, utiliser un environnement Firebase de test.
+- Vérifier que `SENT` signifie « transmis, en attente de réponse », et non « trajet confirmé ». La confirmation commerciale nécessite une action explicite de l'équipe.
+
+### 3. E-mails HTML
+
+Le dépôt contient `google-apps-script/Code.gs` avec `htmlBody` et une version texte de secours. Mettre à jour **uniquement** le fichier `Code.gs` du projet Apps Script existant, sans écraser `Installation.gs` ni recréer les déclencheurs. Exécuter `diagnostiquerNavettePhoenix` ; valider ensuite un e-mail de test en environnement isolé. Le dépôt GitHub ne déploie pas automatiquement Apps Script.
+
+### 4. Mise à jour Google Play sans casser l'application installée
+
+- La version **release** doit conserver `com.phoenix.navette` ; le package de débogage `com.phoenix.navette28` est distinct.
+- Relever dans Play Console le plus grand `versionCode` déjà importé. Fournir une valeur strictement supérieure via `navettePlayVersionCode` ; ne pas deviner le numéro.
+- Vérifier que le certificat SHA-256 de la clé d'importation correspond à Play Console et conserver la clé privée hors du dépôt. Ne jamais générer une nouvelle clé pour remplacer l'ancienne sans procédure officielle.
+- Vérifier le fichier Firebase **release** et la configuration Play Integrity/App Check. L'application release ne doit pas utiliser la configuration de débogage.
+- Après `testDebugUnitTest`, construire le bundle signé avec les paramètres de signature locaux et la tâche `verifyPlayBundle` existante. Vérifier le résultat dans Play Console.
+- Publier d'abord en **test interne** ; vérifier l'installation, l'ouverture, le parcours complet, l'historique et la mise à jour d'une version déjà installée avant la production.
+
+**Critère de validation :** tests Gradle réussis, interface vérifiée sur plusieurs formats, e-mail HTML reçu, statuts cohérents, AAB signé avec la clé autorisée, import accepté dans Play Console. Une réception Gmail passée ne prouve pas à elle seule la conformité de la nouvelle release.
+
+---
+
 # Activer l’envoi et préparer Google Play
 
 ## Envoi via Google sans facturation
