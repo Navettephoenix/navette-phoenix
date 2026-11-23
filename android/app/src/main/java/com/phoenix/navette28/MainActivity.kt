@@ -154,9 +154,22 @@ class MainActivity : AppCompatActivity() {
         val width = if (resources.configuration.screenWidthDp >= 560) dp(560) else -1
         root.addView(column, FrameLayout.LayoutParams(width, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         scroll.addView(root)
-        // Equivalent View de Modifier.statusBarsPadding() pour toutes les barres du haut.
         column.setPadding(dp(20), dp(14), dp(20), dp(24))
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
+
+        // La navigation reste fixe au-dessus du contenu défilant, y compris sur Tarifs.
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Palette.paper)
+        }
+        if (next != Screen.HOME && next != Screen.RECEIPT) {
+            val header = column().apply {
+                setPadding(dp(20), dp(14), dp(20), dp(2))
+            }
+            header.backLink { back() }.isEnabled = !sending && !requestingNotifications
+            page.addView(header, LinearLayout.LayoutParams(-1, -2))
+        }
+        page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        ViewCompat.setOnApplyWindowInsetsListener(page) { view, insets ->
             val status = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
             val navigation = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime())
@@ -167,14 +180,9 @@ class MainActivity : AppCompatActivity() {
             insets
         }
         column.isFocusableInTouchMode = true
-        setContentView(scroll)
-        ViewCompat.requestApplyInsets(scroll)
+        setContentView(page)
+        ViewCompat.requestApplyInsets(page)
         column.requestFocus()
-
-        if (next != Screen.HOME && next != Screen.RECEIPT) {
-            column.backLink { back() }.isEnabled = !sending && !requestingNotifications
-            column.space(8)
-        }
         when (next) {
             Screen.HOME -> home()
             Screen.TRIP -> trip()
@@ -436,7 +444,7 @@ class MainActivity : AppCompatActivity() {
             dialog.show()
         }
         feedback.control(key, parent, selector)
-        val detail = bind(parent, "$label · Lieu précis (gare, mairie, adresse…)",
+        val detail = bind(parent, "$label · Adresse précise",
             detailKey, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS, 150)
         detail.doAfterTextChanged { updateAddress() }
         val help = parent.label(
