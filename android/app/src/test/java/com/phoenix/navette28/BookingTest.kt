@@ -24,6 +24,26 @@ class BookingTest {
         assertNotNull(booking.copy(passengers = 5).validateTrip(now))
     }
 
+    @Test fun sameCommuneWithDifferentPickupAndDropoffIsAValidTrip() {
+        val local = booking.copy(
+            departure = "Senonches · Mairie",
+            arrival = "Senonches · Gare routière",
+            departureCommune = "Senonches",
+            arrivalCommune = "Senonches",
+            departureDetail = "Mairie",
+            arrivalDetail = "Gare routière",
+            passengers = 3
+        )
+        assertNull(local.validateTrip(now))
+        val fare = local.pricing as PricingCalculator.Resultat.Tarif
+        assertEquals(1, fare.zone)
+        assertEquals(5, fare.prixParPassager)
+        assertEquals(15, fare.prixTotal)
+        assertEquals(15, local.payload("test-id")["priceTotal"])
+        // A journey from one point to itself is not a valid booking.
+        assertNotNull(local.copy(arrival = local.departure).validateTrip(now))
+    }
+
     @Test fun validatesReturnAndConsent() {
         assertNull(booking.copy(returnDate = "2027-04-16", returnTime = "18:00").validateTrip(now))
         assertNotNull(booking.copy(returnDate = "2027-04-16", returnTime = "09:00").validateTrip(now))
