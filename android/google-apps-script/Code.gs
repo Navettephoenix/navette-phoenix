@@ -324,12 +324,20 @@ function customerReceiptMessage_(document, id) {
   if (!mailAddress_(to) || !/^[a-f0-9-]{36}$/.test(id)) return null;
   const reference = 'NP-' + id.replace(/-/g, '').slice(0, 16).toUpperCase();
   const service = text('service') === 'DEVIS' ? 'devis' : 'navette';
+  const hasReturn = text('returnDate') && text('returnTime');
+  const passengers = Number((fields.passengers || {}).integerValue || 0);
+  const price = text('pricingType') === 'FIXED'
+    ? String((fields.priceTotal || {}).integerValue || '') + ' € (estimation)'
+    : 'Sur devis';
   const lines = [
     'Votre demande ' + service + ' a été transmise à Navette Phoenix 28.',
     'Référence : ' + reference,
     'Départ : ' + text('departure'),
     'Arrivée : ' + text('arrival'),
-    'Date et heure : ' + text('date') + ' à ' + text('time') + ' (heure de Paris)',
+    'Aller : ' + text('date') + ' à ' + text('time') + ' (heure de Paris)',
+    ...(hasReturn ? ['Retour : ' + text('returnDate') + ' à ' + text('returnTime') + ' (heure de Paris)'] : []),
+    'Passagers : ' + passengers,
+    'Tarif : ' + price,
     'Cette demande est EN ATTENTE DE CONFIRMATION par Phoenix LTS.',
     'Pour toute question, répondez à cet e-mail.'
   ];
@@ -345,6 +353,9 @@ function customerReceiptMessage_(document, id) {
     + '<p>Départ : ' + escape(text('departure')) + '</p>'
     + '<p>Arrivée : ' + escape(text('arrival')) + '</p>'
     + '<p>Aller : ' + escape(text('date') + ' à ' + text('time')) + ' (heure de Paris)</p>'
+    + (hasReturn ? '<p>Retour : ' + escape(text('returnDate') + ' à ' + text('returnTime')) + '</p>' : '')
+    + '<p>Passagers : ' + escape(passengers) + '</p>'
+    + '<p>Tarif : ' + escape(price) + '</p>'
     + '<p>Le trajet n’est confirmé qu’après validation explicite par Phoenix LTS.</p>'
     + '<p>Vous pouvez répondre à cet e-mail pour nous contacter.</p>'
     + '</div></div>';
@@ -413,7 +424,7 @@ function queueSnapshot_(parent, token, statusField, states) {
     const isProcessing = status === 'SENDING';
     const field = statusField === 'mailStatus'
       ? (isProcessing ? 'mailStatusUpdatedAt' : 'createdAt')
-      : (isProcessing ? 'customerReceiptUpdatedAt' : 'createdAt');
+      : 'customerReceiptUpdatedAt';
     const stuck = docs.filter(document => {
       if (status !== 'PENDING' && !isProcessing) return false;
       const raw = (document.fields[field] || {}).timestampValue;
