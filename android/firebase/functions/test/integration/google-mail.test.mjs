@@ -26,7 +26,7 @@ const string = stringValue => ({ stringValue });
 const serverTime = fieldPath => ({ fieldPath, setToServerValue: 'REQUEST_TIME' });
 const uidPath = uid => `googleMailAccounts/${uid}`;
 
-function enqueue(uid, owner, id, mailStatus = 'PENDING') {
+function enqueue(uid, owner, id, mailStatus = 'PENDING', extraFields = {}) {
   const account = `${database}/${uidPath(owner)}`;
   const fields = {
     requestId: string(id), service: string('NAVETTE'),
@@ -36,6 +36,7 @@ function enqueue(uid, owner, id, mailStatus = 'PENDING') {
     passengers: { integerValue: '2' }, luggage: { integerValue: '1' },
     name: string('Passager fictif'), email: string('test@example.test'), phone: string('0600000000'),
     needs: string(''), notes: string(''), consent: { booleanValue: true }, mailStatus: string(mailStatus),
+    ...extraFields,
   };
   return fetch(`${base}:commit`, {
     method: 'POST', headers: headers(uid),
@@ -83,4 +84,23 @@ test('Firestore accepte une demande du propriétaire et protège la file de tran
     method: 'PATCH', headers: headers(uid),
     body: JSON.stringify({ fields: { mailStatus: string('SENT') } }),
   })).status, 403);
+});
+
+test('Firestore accepte les champs tarifaires cohérents et refuse un montant modifié', async () => {
+  const basePrice = {
+    departureCommune: string('Digny'), arrivalCommune: string('Senonches'),
+    departureDetail: string(''), arrivalDetail: string(''),
+    pricingType: string('FIXED'), pricingSector: string('FORETS_DU_PERCHE'),
+    pricingZone: { integerValue: '2' }, pricePerPassenger: { integerValue: '6' },
+    priceOneWay: { integerValue: '12' }, priceTotal: { integerValue: '12' },
+  };
+  const uid = randomUUID();
+  const accepted = await enqueue(uid, uid, randomUUID(), 'PENDING', basePrice);
+  assert.equal(accepted.status, 200, await accepted.text());
+
+  const tamperedUid = randomUUID();
+  const tampered = await enqueue(tamperedUid, tamperedUid, randomUUID(), 'PENDING', {
+    ...basePrice, priceTotal: { integerValue: '999' },
+  });
+  assert.equal(tampered.status, 403, await tampered.text());
 });
