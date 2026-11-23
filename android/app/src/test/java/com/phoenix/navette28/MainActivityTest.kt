@@ -60,6 +60,32 @@ class MainActivityTest {
         }
     }
 
+    @Test fun aSavedFavoriteCanBeReusedAndDeletedWithoutContactData() {
+        Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
+            val activity = controller.get()
+            val prefs = activity.getSharedPreferences("navette-favorite-trip", android.content.Context.MODE_PRIVATE)
+            FavoriteTrip.clear(prefs)
+            try {
+                val window = activity.window.decorView
+                window.button("Réserver une navette").performClick()
+                window.chooseCommune("Départ", "Senonches")
+                window.chooseCommune("Arrivée", "La Loupe")
+                window.button("Mémoriser ce trajet sur cet appareil").performClick()
+                ShadowDialog.getLatestDialog().dismiss()
+                window.button("Retour").performClick()
+                window.button("Réserver une navette").performClick()
+                window.button("Reprendre mon trajet favori").performClick()
+                assertEquals("Senonches", window.field("Départ · Commune").editText!!.text.toString())
+                assertEquals("La Loupe", window.field("Arrivée · Commune").editText!!.text.toString())
+                assertNull(FavoriteTrip.load(prefs)?.get("email"))
+                window.button("Supprimer ce trajet mémorisé").performClick()
+                assertNull(FavoriteTrip.load(prefs))
+            } finally {
+                FavoriteTrip.clear(prefs)
+            }
+        }
+    }
+
     @Test fun addressSearchRequiresCommuneAndThreeCharactersBeforeConnecting() {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
