@@ -368,9 +368,14 @@ class MainActivity : AppCompatActivity() {
                 totalLabel.text = if (roundTrip) "Total aller-retour : ${result.prixTotal} €"
                     else "Total : ${result.prixTotal} €"
                 quoteButton.visibility = View.GONE
+            } else if (value("departureCommune").isBlank() || value("arrivalCommune").isBlank()) {
+                zoneLabel.text = "Votre tarif apparaîtra ici"
+                singleLabel.text = "Choisissez une commune de départ et une destination pour afficher le tarif estimé."
+                totalLabel.text = ""
+                quoteButton.visibility = View.GONE
             } else {
                 zoneLabel.text = "Tarif sur devis"
-                singleLabel.text = "Trajet hors zone, entre secteurs ou commune à préciser."
+                singleLabel.text = "Trajet hors zone ou entre secteurs : nous vous communiquerons un tarif personnalisé."
                 totalLabel.text = ""
                 quoteButton.visibility = if (service == Service.DEVIS) View.GONE else View.VISIBLE
             }
