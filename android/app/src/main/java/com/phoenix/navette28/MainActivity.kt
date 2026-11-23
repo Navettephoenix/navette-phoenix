@@ -633,7 +633,16 @@ class MainActivity : AppCompatActivity() {
         return gateway.call("listReservations", emptyMap()).onSuccessTask { value ->
             val rows = (value as? Map<*, *>)?.get("reservations") as? List<*>
             Tasks.forResult(rows.orEmpty().filterIsInstance<Map<*, *>>().mapNotNull { row ->
-                (row["reference"] as? String)?.let { RequestSummary(it, row["status"] as? String) }
+                (row["reference"] as? String)?.let {
+                    RequestSummary(it, row["status"] as? String, row["service"] as? String,
+                        row["departure"] as? String, row["arrival"] as? String,
+                        row["date"] as? String, row["time"] as? String,
+                        row["pricingType"] as? String, row["pricingSector"] as? String,
+                        (row["pricingZone"] as? Number)?.toInt(),
+                        (row["passengers"] as? Number)?.toInt(),
+                        (row["pricePerPassenger"] as? Number)?.toInt(),
+                        (row["priceTotal"] as? Number)?.toInt())
+                }
             })
         }
     }
