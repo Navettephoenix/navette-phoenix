@@ -51,6 +51,15 @@ class MainActivityTest {
         }
     }
 
+    @Test fun emptyTripShowsHelpfulPriceGuidanceInsteadOfQuote() {
+        Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
+            val window = controller.get().window.decorView
+            window.button("Réserver une navette").performClick()
+            assertTrue(window.labels().contains("Votre tarif apparaîtra ici"))
+            assertFalse(window.labels().contains("Tarif sur devis"))
+        }
+    }
+
     @Test fun addressSearchRequiresCommuneAndThreeCharactersBeforeConnecting() {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
