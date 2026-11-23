@@ -92,6 +92,25 @@ function bookingMessage_(document, id) {
       || ((returnDate || returnTime) && !(parisTime_(returnDate, returnTime) > pickup))) {
     return null;
   }
+  // Les anciens envois ne contiennent pas de prix ; les nouvelles estimations
+  // sont recalculées ici, sans faire confiance au montant écrit par le téléphone.
+  const proposed = text('pricingType');
+  let pricing = null;
+  if (proposed) {
+    pricing = bookingPrice_(text('departureCommune'), text('arrivalCommune'),
+      Boolean(returnDate), passengers);
+    const claimedZone = integer('pricingZone');
+    const claimedPrice = integer('pricePerPassenger');
+    const claimedOneWay = integer('priceOneWay');
+    const claimedTotal = integer('priceTotal');
+    const claimedSector = text('pricingSector');
+    if (proposed !== (pricing ? 'FIXED' : 'QUOTE')
+        || claimedZone !== (pricing ? pricing.zone : 0)
+        || claimedPrice !== (pricing ? pricing.price : 0)
+        || claimedOneWay !== (pricing ? pricing.oneWay : 0)
+        || claimedTotal !== (pricing ? pricing.total : 0)
+        || claimedSector !== (pricing ? pricing.sector : '')) return null;
+  }
   const reference = 'NP-' + id.replace(/-/g, '').slice(0, 16).toUpperCase();
   const title = text('service') === 'DEVIS' ? 'Demande de devis' : 'Demande de navette';
   return {
@@ -104,6 +123,12 @@ function bookingMessage_(document, id) {
       'Aller (heure de Paris) : ' + date + ' à ' + time,
       returnDate ? 'Retour (heure de Paris) : ' + returnDate + ' à ' + returnTime : 'Aller simple',
       'Passagers : ' + passengers + ' · Bagages : ' + luggage,
+      proposed ? (pricing
+        ? 'Tarif estimé : ' + pricing.price + ' € par passager · zone ' + pricing.zone +
+          ' (' + (pricing.sector === 'FORETS_DU_PERCHE' ? 'Forêts du Perche' : 'Terres de Perche') +
+          ') · ' + pricing.oneWay + ' € le trajet · ' + pricing.total + ' € au total'
+        : 'Tarif sur devis') : '',
+      proposed ? 'Tarif estimé, confirmé par le service de réservation.' : '',
       'Nom : ' + text('name'),
       'Téléphone : ' + text('phone'),
       'E-mail : ' + email,
@@ -192,4 +217,44 @@ function diagnostiquerNavettePhoenix() {
   };
   console.log(JSON.stringify(report));
   return report;
+}
+
+/** Même grille par commune que PricingCalculator.kt, recalculée côté relais. */
+function bookingPrice_(departure, arrival, returnTrip, passengers) {
+  const normalized = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]/g, '');
+  const zones = [
+    ['FORETS_DU_PERCHE', [
+      ['Senonches'],
+      ['Digny', 'La Framboisière', 'La Chapelle-Fortin'],
+      ['Jaudrais', 'Lamblore', 'La Puisaye', 'Le Mesnil-Thomas', 'Les Ressuintes'],
+      ['Boissy-lès-Perche', 'Louvilliers-lès-Perche', 'La Ferté-Vidame', 'La Saucelle', 'Rohaire']
+    ]],
+    ['TERRES_DE_PERCHE', [
+      ['La Loupe'],
+      ['Meaucé', 'Saint-Éliph', 'Fontaine-Simon', 'Vaupillon',
+        'Saint-Maurice-Saint-Germain', 'Les Corvées-les-Yys'],
+      ['Belhomert-Guéhouville', 'Champrond-en-Gâtine', 'Manou', 'Montireau',
+        'Montlandon', 'Saint-Victor-de-Buthon'],
+      ['Chassant', 'Combres', 'Frazé', 'Happonvilliers', 'La Croix-du-Perche',
+        'Marolles-les-Buis', 'Nonvilliers-Grandhoux', 'Saintigny', 'Thiron-Gardais']
+    ]]
+  ];
+  function find(name) {
+    for (const [sector, levels] of zones) {
+      for (let index = 0; index < levels.length; index++) {
+        if (levels[index].some(value => normalized(value) === normalized(name))) {
+          return { sector, zone: index + 1 };
+        }
+      }
+    }
+    return null;
+  }
+  const first = find(departure);
+  const last = find(arrival);
+  if (!first || !last || first.sector !== last.sector) return null;
+  const zone = Math.max(first.zone, last.zone);
+  const price = [5, 6, 8, 10][zone - 1];
+  const oneWay = price * passengers;
+  return { zone, sector: first.sector, price, oneWay, total: oneWay * (returnTrip ? 2 : 1) };
 }
