@@ -284,11 +284,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun trip() {
         column.stepHeader(service.label, 1, "Trajet")
-        val address = column.panel("Départ et arrivée")
+        column.label("Choisissez votre point de départ et votre destination.", 15f, Palette.muted)
+        column.space(12)
         var updateFare: () -> Unit = {}
-        communeField(address, "Départ", "departure") { updateFare() }
-        communeField(address, "Arrivée", "arrival") { updateFare() }
-        address.navigationLink(if (BuildConfig.GOOGLE_MAIL) "Voir dans Google Maps" else "Voir l’itinéraire",
+        val departurePanel = column.panel("01  ·  Votre départ")
+        communeField(departurePanel, "Départ", "departure") { updateFare() }
+        column.space(12)
+        val arrivalPanel = column.panel("02  ·  Votre destination")
+        communeField(arrivalPanel, "Arrivée", "arrival") { updateFare() }
+        column.space(8)
+        column.navigationLink(if (BuildConfig.GOOGLE_MAIL) "Voir dans Google Maps" else "Voir l’itinéraire",
             R.drawable.ic_destinations) {
             val current = booking()
             val issue = current.validateAddresses()
@@ -448,10 +453,10 @@ class MainActivity : AppCompatActivity() {
             detailKey, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS, 150)
         detail.doAfterTextChanged { updateAddress() }
         val help = parent.label(
-            "Saisissez le numéro et la rue ou le lieu connu, puis recherchez une proposition.",
-            13f, Palette.muted
+            "Facultatif : précisez une rue, une gare ou un lieu de rendez-vous.",
+            14f, Palette.muted
         )
-        parent.space(3)
+        parent.space(2)
         lateinit var searchButton: MaterialButton
         searchButton = parent.navigationLink("Rechercher une adresse (IGN)", R.drawable.ic_destinations) {
             val query = detail.text.toString().trim()
@@ -496,7 +501,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        parent.label("Les mots recherchés sont transmis au service public de géocodage IGN.", 12f, Palette.muted)
+        parent.label("Recherche facultative · Service public IGN", 12f, Palette.muted)
         updateAddress()
     }
 
