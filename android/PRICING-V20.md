@@ -47,6 +47,20 @@ L'écran « Départ et arrivée » conserve la liste des communes, les lieux pr�
 
 L'utilisateur peut conserver une saisie manuelle lorsque la mairie, la gare, le lieu-dit ou l'adresse n'est pas référencé. L'application ne prétend pas certifier une adresse non reconnue : le client peut consulter son itinéraire dans Google Maps. Les mots envoyés à IGN sont indiqués sous le champ et dans la page Confidentialité. Aucun nouveau secret Google Maps ni service Firebase Functions n'est requis pour les recherches IGN.
 
+## Index Firestore requis pour le relais
+
+La requête du relais Google Apps Script utilise une **collection group** `googleMailRequests`, filtrée par `mailStatus` et triée par `createdAt`. L'index composite correspondant est défini dans `firebase/firestore.indexes.json`, mais il n'est **pas déployé** par `--only firestore:rules`.
+
+Depuis `android/firebase`, avec le compte Firebase habilité :
+
+```powershell
+firebase.cmd deploy --only firestore:indexes --project navette-phoenix
+```
+
+Si le déploiement propose de **supprimer un index existant**, **refuser** et comparer les index déployés et ceux du dépôt avant toute suppression. Consulter leur état dans la console Firestore : la construction doit être terminée avant que les requêtes soient garanties.
+
+Si `diagnostiquerNavettePhoenix` renvoie encore HTTP 400, le fichier `Code.gs` du dépôt affiche désormais le détail renvoyé par Firestore (`FAILED_PRECONDITION`, index nécessaire, requête invalide, etc.) au lieu du seul code 400. Remplacer `Code.gs` dans le projet Apps Script existant, sans modifier les déclencheurs ou `Installation.gs`, puis exécuter uniquement la fonction **non destructive** `diagnostiquerNavettePhoenix`. Le statut `SENDING` doit être vérifié dans Gmail et les journaux avant toute relance.
+
 ## Diagnostic d'une réservation sans e-mail (ne pas dupliquer)
 
 Une nouvelle réservation V20 comporte des champs supplémentaires (`departureCommune`, `pricingType`, `priceTotal`, etc.). **Si les règles Firestore du serveur sont encore anciennes, la transaction est refusée**, même si le projet Android compile. Depuis le dossier `android` du projet sous PowerShell :
