@@ -4,7 +4,7 @@ import java.text.Normalizer
 import java.util.Locale
 
 /** Tarification forfaitaire officielle, sur la base de deux communes du même secteur. */
-internal object PricingCalculator {
+object PricingCalculator {
     const val AUTRE_COMMUNE = "Autre commune"
 
     enum class Secteur(val label: String) {
@@ -67,6 +67,7 @@ internal object PricingCalculator {
         val origine = commune(depart) ?: return Resultat.SurDevis
         val destination = commune(arrivee) ?: return Resultat.SurDevis
         if (origine.secteur != destination.secteur) return Resultat.SurDevis
+        // Même zone => tarif de cette zone par passager. Zones différentes => zone la plus élevée.
         val zone = maxOf(origine.zone, destination.zone)
         val prix = when (zone) {
             1 -> 5
