@@ -51,6 +51,22 @@ class MainActivityTest {
         }
     }
 
+    @Test fun addressSearchRequiresCommuneAndThreeCharactersBeforeConnecting() {
+        Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
+            val window = controller.get().window.decorView
+            window.button("Réserver une navette").performClick()
+            val search = window.descendants().filterIsInstance<MaterialButton>()
+                .first { it.text.toString() == "Rechercher une adresse (IGN)" }
+            search.performClick()
+            assertTrue(window.labels().contains("Choisissez d’abord votre commune."))
+            window.chooseCommune("Départ", "Senonches")
+            val detail = window.field("Départ · Lieu précis (gare, mairie, adresse…)").editText!!
+            detail.setText("ru")
+            search.performClick()
+            assertEquals("Saisissez au moins trois caractères avant de rechercher.", detail.error.toString())
+        }
+    }
+
     @Test fun bookingHighlightsMissingCommuneAndUpdatesEstimatedPrice() {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
