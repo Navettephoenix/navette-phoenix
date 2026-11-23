@@ -21,6 +21,7 @@ internal data class RequestSummary(
     val pricingZone: Int? = null, val passengers: Int? = null,
     val pricePerPassenger: Int? = null, val priceTotal: Int? = null,
     val createdAtMillis: Long? = null,
+    val statusUpdatedAtMillis: Long? = null,
 )
 
 internal fun statusLabel(status: String?): String = when (status) {
@@ -59,10 +60,16 @@ internal fun statusTone(status: String?): Int = when (status) {
  * Une demande ancienne n'est pas automatiquement relancée : un envoi Gmail peut
  * avoir réussi alors que l'écriture de son accusé dans Firestore a échoué.
  */
-internal fun transmissionWarning(status: String?, createdAtMillis: Long?, nowMillis: Long): String? {
+internal fun transmissionWarning(
+    status: String?, createdAtMillis: Long?, nowMillis: Long,
+    statusUpdatedAtMillis: Long? = null,
+): String? {
     if (status != "PENDING" && status != "SENDING") return null
-    if (createdAtMillis == null || createdAtMillis <= 0 || nowMillis < createdAtMillis ||
-        nowMillis - createdAtMillis < 20 * 60 * 1000L) return null
+    // SENDING commence lors de la prise en charge, pas lors de la création du dossier.
+    // Les anciennes demandes sans cette date ne sont pas considérées bloquées par déduction.
+    val since = if (status == "SENDING") statusUpdatedAtMillis else createdAtMillis
+    if (since == null || since <= 0 || nowMillis < since ||
+        nowMillis - since < 20 * 60 * 1000L) return null
     return if (status == "SENDING") {
         "Transmission à vérifier. L'e-mail a peut-être été envoyé. Contactez Phoenix LTS avec votre référence avant toute nouvelle demande."
     } else {
@@ -133,7 +140,8 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                     card.space(6)
                 }
                 card.label(statusShortLabel(entry.status), 16f, statusTone(entry.status), bold = true)
-                transmissionWarning(entry.status, entry.createdAtMillis, System.currentTimeMillis())?.let { warning ->
+                transmissionWarning(entry.status, entry.createdAtMillis,
+                    System.currentTimeMillis(), entry.statusUpdatedAtMillis)?.let { warning ->
                     card.space(6)
                     card.label(warning, 15f, Palette.error)
                 }
