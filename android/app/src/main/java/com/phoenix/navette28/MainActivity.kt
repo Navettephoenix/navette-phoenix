@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private val values = mutableMapOf<String, String>()
     private val gateway by lazy { FirebaseGateway.get() }
     private val storage by lazy { getSharedPreferences("reservation-references", MODE_PRIVATE) }
+    private val favoriteTripStorage by lazy { getSharedPreferences("navette-favorite-trip", MODE_PRIVATE) }
     private val stations = listOf("Gare de La Loupe", "Gare de Verneuil-sur-Avre")
     private val communes by lazy {
         assets.open("communes.csv").bufferedReader().useLines { lines ->
@@ -287,6 +288,23 @@ class MainActivity : AppCompatActivity() {
         column.stepHeader(service.label, 1, "Trajet")
         column.label("Choisissez votre point de départ et votre destination.", 15f, Palette.muted)
         column.space(12)
+        FavoriteTrip.load(favoriteTripStorage)?.let { saved ->
+            val favorite = column.panel("Mon trajet habituel")
+            favorite.label(
+                "${saved["departureCommune"]} → ${saved["arrivalCommune"]}",
+                16f, Palette.muted
+            )
+            favorite.space(8)
+            favorite.action("Reprendre mon trajet favori") {
+                values.putAll(saved)
+                render(Screen.TRIP)
+            }
+            favorite.navigationLink("Supprimer ce trajet mémorisé") {
+                FavoriteTrip.clear(favoriteTripStorage)
+                render(Screen.TRIP)
+            }
+            column.space(12)
+        }
         var updateFare: () -> Unit = {}
         val departurePanel = column.panel("01  ·  Votre départ")
         communeField(departurePanel, "Départ", "departure") { updateFare() }
@@ -294,6 +312,16 @@ class MainActivity : AppCompatActivity() {
         val arrivalPanel = column.panel("02  ·  Votre destination")
         communeField(arrivalPanel, "Arrivée", "arrival") { updateFare() }
         column.space(8)
+        column.navigationLink("Mémoriser ce trajet sur cet appareil") {
+            val issue = booking().validateAddresses()
+            if (issue != null) {
+                feedback.show(issue)
+            } else {
+                FavoriteTrip.save(favoriteTripStorage, values)
+                showMessage("Trajet mémorisé uniquement sur cet appareil. Vous pourrez le réutiliser ou le supprimer.")
+            }
+        }
+        column.space(2)
         column.navigationLink(if (BuildConfig.GOOGLE_MAIL) "Voir dans Google Maps" else "Voir l’itinéraire",
             R.drawable.ic_destinations) {
             val current = booking()
@@ -880,6 +908,8 @@ class MainActivity : AppCompatActivity() {
             "Les suggestions de communes sont intégrées à l’application. Si vous lancez une recherche d’adresse, les mots saisis sont transmis à la Géoplateforme IGN. Si vous ouvrez l’itinéraire dans Google Maps, Google reçoit le départ et l’arrivée."
         else "La recherche d’adresses et l’itinéraire transmettent les adresses concernées à Google Maps. Vous pouvez aussi saisir vos adresses à la main.", 15f)
         info.space(10)
+        info.label("Si vous choisissez « Mémoriser ce trajet », seuls les lieux du trajet sont conservés sur cet appareil. Vous pouvez effacer ce favori dans le formulaire de réservation.", 15f)
+        info.space(8)
         info.label("Pour exercer vos droits d’accès, de rectification ou d’effacement, contactez Phoenix LTS via la rubrique Contact.", 15f)
         info.space(10)
         info.action("Lire la politique de confidentialité") { openPrivacyPolicy() }
