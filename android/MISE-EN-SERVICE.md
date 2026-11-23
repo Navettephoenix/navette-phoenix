@@ -1,3 +1,44 @@
+# V20.1 — fiabilisation des transmissions et accusés client (23 novembre 2026)
+
+**Statut : code ajouté au dépôt, tests de simulation du relais réussis, mais nouvel APK et vrai Apps Script non encore validés sur le PC / Google.**
+
+## 1. Surveillance des demandes et prévention des doublons
+
+- L'historique peut avertir l'utilisateur si une demande `PENDING` attend plus de **20 minutes**. Il ne crée ni renvoi ni nouvelle demande.
+- Si une demande `SENDING` reste bloquée plus de **20 minutes depuis la prise en charge** (nouveau champ `mailStatusUpdatedAt`), l'application conseille de vérifier avec Phoenix LTS. Les anciens dossiers sans cette date ne déclenchent pas de fausse alerte.
+- Le relais ajoute `mailStatusUpdatedAt` à ses changements d'état et `customerReceiptUpdatedAt` aux accusés client ; ces champs sont modifiés côté serveur, pas depuis Android.
+- Les deux circuits ont un protocole `PENDING → SENDING → SENT`. `SENDING` signifie **livraison incertaine** : ne jamais remettre automatiquement à `PENDING`, même si un script a échoué juste après l'envoi Gmail.
+- Le diagnostic `diagnostiquerNavettePhoenix` calcule les volumes des 100 premiers dossiers par statut, les files qui dépassent 20 minutes et quelques références à vérifier, **sans noms, adresses mail ou téléphones**. Ce n'est pas une alerte push automatique : il faut exécuter le diagnostic pour lire son résultat.
+- La récupération d'une demande `SENDING` exige une vérification des e-mails effectivement reçus et de Firestore par la personne responsable.
+
+## 2. Accusé de réception au client — déploiement contrôlé
+
+Le script `android/google-apps-script/Code.gs` contient un e-mail HTML + texte à l'adresse fournie par le client, avec la référence, le trajet, les horaires, le retour éventuel, les passagers, le tarif indicatif, un bouton de réponse via `replyTo`, et **EN ATTENTE DE CONFIRMATION**. L'envoi professionnel part toujours en premier. Les anciens accusés `PENDING` sont traités en priorité, et un quota est réservé pour les e-mails clients des nouvelles demandes.
+
+**Le drapeau `ENABLE_CUSTOMER_RECEIPTS_ = false` est toujours désactivé.** Aucun changement n'est déployé dans l'Apps Script actif simplement en mettant GitHub à jour. Pour l'activer :
+
+1. Tester localement les scripts sans e-mail réel depuis `android/` :
+   ```powershell
+   node .\google-apps-script\relay.test.js
+   .\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+   ```
+   Les simulations contrôlent notamment l'absence de doublons après panne Gmail ou Firestore, les quotas et le contenu de l'accusé client.
+2. Dans le dossier `android/firebase/`, faire déployer par le responsable Firebase les **index** ajoutés au dépôt, notamment `customerReceiptStatus` :
+   ```powershell
+   cd .\firebase
+   firebase deploy --only firestore:indexes --project navette-phoenix
+   ```
+   Attendre l'état « activé/prêt ». Ne pas remplacer les règles de sécurité par erreur.
+3. Vérifier la politique de confidentialité publiée, l'information sur les messages transactionnels, le compte Google qui envoie et la boîte professionnelle utilisée pour les réponses. Chaque demande consomme jusqu'à **2 destinataires du quota quotidien** au lieu de 1. Vérifier le quota disponible et prévoir son épuisement.
+4. **Sauvegarder le Code.gs actuel dans Apps Script**, puis y copier le Code.gs du dépôt en conservant `ENABLE_CUSTOMER_RECEIPTS_ = false` et le `Installation.gs` existant. **Ne pas créer de deuxième déclencheur.**
+5. Depuis l'éditeur Apps Script, exécuter dans cet ordre `testerAccuseClientSansEnvoi`, `verifierActivationAccuseClient`, puis `diagnostiquerNavettePhoenix`. Le deuxième doit renvoyer `technicalPreflightOk: true` et `customerReceiptIndexReady: true`. Le nombre de déclencheurs doit être **1**. Aucune de ces fonctions n'envoie d'e-mail ou n'active le relais. Le rapport ne valide pas juridiquement la politique de confidentialité.
+6. **Seulement après ces contrôles**, mettre `ENABLE_CUSTOMER_RECEIPTS_ = true` dans Apps Script et enregistrer. Pas besoin de déployer le script comme application Web : le déclencheur existant exécutera le code enregistré. Avec une seule nouvelle réservation de test vers une adresse que vous contrôlez, vérifier la réception dans les **deux boîtes**, puis les états `mailStatus=SENT` et `customerReceiptStatus=SENT`.
+7. En cas de problème ou de quota insuffisant, revenir à `ENABLE_CUSTOMER_RECEIPTS_ = false` pour empêcher tout nouvel accusé, **sans effacer ni remettre en file** les messages `SENDING`. Ne jamais renvoyer sans contrôle manuel.
+
+**Limite technique** : aucun appel à Gmail et Firestore ne forme une transaction atomique. On ne peut pas promettre une livraison « exactement une fois » en toutes circonstances ; notre protocole privilégie **aucun renvoi automatique en état incertain**, le contrôle manuel et une référence unique.
+
+---
+
 # V20.1 — nouvelles améliorations progressives (23 novembre 2026)
 
 Ce document complète les instructions ci-dessous. **Le circuit officiel Firebase → Apps Script → Gmail reste prioritaire** : ne pas le redéployer sans sauvegarde et vérification.
