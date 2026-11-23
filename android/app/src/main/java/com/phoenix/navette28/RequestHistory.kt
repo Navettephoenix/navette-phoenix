@@ -83,38 +83,62 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                     "DEVIS" -> "Demande de devis"
                     else -> "Demande"
                 }
-                val card = cards.panel(title)
+                val card = cards.panel()
+                card.label(title, 17f, Palette.ink, bold = true)
+                card.space(8)
                 val from = entry.departure?.trim().orEmpty()
                 val to = entry.arrival?.trim().orEmpty()
                 if (from.isNotEmpty() || to.isNotEmpty()) {
-                    card.label("TRAJET", 12f, Palette.muted, bold = true)
-                    card.space(4)
-                    if (from.isNotEmpty()) card.label("Départ  ·  $from", 16f, Palette.ink, bold = true)
-                    if (to.isNotEmpty()) {
-                        card.space(4)
-                        card.label("Arrivée  ·  $to", 16f, Palette.ink, bold = true)
-                    }
-                    card.space(9)
+                    val shortFrom = from.substringBefore(" · ").ifBlank { from }
+                    val shortTo = to.substringBefore(" · ").ifBlank { to }
+                    card.label("$shortFrom  →  $shortTo", 18f, Palette.ink, bold = true)
+                    card.space(6)
                 }
                 if (!entry.date.isNullOrBlank()) {
                     card.label(listOfNotNull(Booking.displayDate(entry.date), entry.time?.takeIf { it.isNotBlank() })
                         .joinToString(" à "), 15f, Palette.muted)
-                    card.space(9)
+                    card.space(8)
                 }
-                if (entry.pricingType == "FIXED" && entry.pricingZone != null &&
-                    entry.pricePerPassenger != null && entry.passengers != null && entry.priceTotal != null) {
+                if (entry.pricingType == "FIXED" && entry.priceTotal != null) {
                     card.label("Tarif estimé  ·  ${entry.priceTotal} €", 20f, Palette.sun, bold = true)
-                    card.space(3)
-                    card.label("Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)", 13f, Palette.muted)
+                    card.space(6)
                 } else if (entry.pricingType == "QUOTE") {
                     card.label("Tarif sur devis", 18f, Palette.sun, bold = true)
+                    card.space(6)
                 }
-                card.space(12)
                 card.label(statusShortLabel(entry.status), 16f, statusTone(entry.status), bold = true)
-                card.space(3)
-                card.label(statusLabel(entry.status), 13f, Palette.muted)
-                card.space(9)
-                card.label("Référence  ·  ${entry.reference}", 13f, Palette.muted).setTextIsSelectable(true)
+                card.space(10)
+
+                // La fiche détaillée est consultable à la demande : la liste reste compacte.
+                val details = card.context.column().apply { visibility = View.GONE }
+                card.addView(details, -1, -2)
+                details.label(statusLabel(entry.status), 15f, Palette.muted)
+                details.space(10)
+                if (from.isNotEmpty()) {
+                    details.label("Départ  ·  $from", 16f, Palette.ink)
+                    details.space(6)
+                }
+                if (to.isNotEmpty()) {
+                    details.label("Arrivée  ·  $to", 16f, Palette.ink)
+                    details.space(6)
+                }
+                if (entry.pricingType == "FIXED" && entry.pricingZone != null &&
+                    entry.pricePerPassenger != null && entry.passengers != null) {
+                    details.label("Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)", 15f, Palette.muted)
+                    details.space(8)
+                }
+                details.label("Référence  ·  ${entry.reference}", 15f, Palette.muted)
+                    .setTextIsSelectable(true)
+                details.space(8)
+                val toggle = card.action("Voir les détails") {
+                    val expanded = details.visibility != View.VISIBLE
+                    details.visibility = if (expanded) View.VISIBLE else View.GONE
+                }
+                toggle.setOnClickListener {
+                    val expanded = details.visibility != View.VISIBLE
+                    details.visibility = if (expanded) View.VISIBLE else View.GONE
+                    toggle.text = if (expanded) "Masquer les détails" else "Voir les détails"
+                }
                 cards.space(10)
             }
         }
