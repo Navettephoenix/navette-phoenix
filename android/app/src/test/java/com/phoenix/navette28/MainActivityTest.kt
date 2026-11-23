@@ -55,7 +55,10 @@ class MainActivityTest {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val window = controller.get().window.decorView
             window.button("Réserver une navette").performClick()
-            window.button("Recherche d’adresse (optionnelle)  +").performClick()
+            // Deux sections possèdent le même libellé : ouvrir celle du départ.
+            window.descendants().filterIsInstance<MaterialButton>()
+                .first { it.text.toString() == "Recherche d’adresse (optionnelle)  +" }
+                .performClick()
             val search = window.descendants().filterIsInstance<MaterialButton>()
                 .first { it.text.toString() == "Rechercher une adresse (IGN)" }
             search.performClick()
