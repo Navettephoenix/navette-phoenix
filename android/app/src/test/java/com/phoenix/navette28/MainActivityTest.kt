@@ -196,12 +196,13 @@ class MainActivityTest {
                 "Senonches  →  La Loupe", statusShortLabel("CONFIRMED"))))
             assertEquals(2, content.buttons("Voir les détails").size)
             content.buttons("Voir les détails").forEach { it.performClick() }
-            assertTrue(content.labels().containsAll(listOf("Départ  ·  Senonches",
-                "Référence  ·  NP-OLD", statusLabel("CONFIRMED"))))
+            assertTrue(content.labels().containsAll(listOf("Départ", "Senonches",
+                "RÉFÉRENCE DE LA DEMANDE", "NP-OLD", statusLabel("CONFIRMED"))))
+            assertEquals(2, content.buttons("Copier la référence").size)
             next = Tasks.forException(IllegalStateException("offline"))
             content.button("Actualiser").performClick()
             shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(content.labels().containsAll(listOf(activity.getString(R.string.history_retry), "Référence  ·  NP-DEMO", "Référence  ·  NP-OLD")))
+            assertTrue(content.labels().containsAll(listOf(activity.getString(R.string.history_retry), "NP-DEMO", "NP-OLD")))
             next = Tasks.forResult(listOf(first.copy(status = "SENT")))
             content.button("Actualiser").performClick()
             shadowOf(Looper.getMainLooper()).idle()
