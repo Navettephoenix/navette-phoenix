@@ -46,7 +46,7 @@ import java.util.Locale
 import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
-    private enum class Screen { HOME, TRIP, CONTACT_FORM, REVIEW, RECEIPT, DESTINATIONS, HISTORY, CONTACT, PRIVACY }
+    private enum class Screen { HOME, TRIP, CONTACT_FORM, REVIEW, RECEIPT, DESTINATIONS, TARIFFS, HISTORY, CONTACT, PRIVACY }
 
     private val values = mutableMapOf<String, String>()
     private val gateway by lazy { FirebaseGateway.get() }
@@ -179,6 +179,7 @@ class MainActivity : AppCompatActivity() {
             Screen.REVIEW -> review()
             Screen.RECEIPT -> receipt()
             Screen.DESTINATIONS -> destinations()
+            Screen.TARIFFS -> tariffs()
             Screen.HISTORY -> history()
             Screen.CONTACT -> contact()
             Screen.PRIVACY -> privacy()
@@ -256,6 +257,8 @@ class MainActivity : AppCompatActivity() {
         links.rule()
         links.navigationLink("Nos destinations", R.drawable.ic_destinations) { render(Screen.DESTINATIONS) }
         links.rule()
+        links.navigationLink("Nos tarifs", R.drawable.ic_devis) { render(Screen.TARIFFS) }
+        links.rule()
         links.navigationLink("Nous contacter", R.drawable.ic_contact) { render(Screen.CONTACT) }
         column.space(8)
         column.navigationLink("Notre site officiel") { open("https://www.navettephoenix.fr/".toUri()) }.setTextColor(Palette.sun)
@@ -318,7 +321,9 @@ class MainActivity : AppCompatActivity() {
         val bags = group.quantity(R.plurals.bags, R.string.remove_bag, R.string.add_bag,
             0..16, value("luggage").toIntOrNull() ?: 0) { values["luggage"] = it.toString() }
         feedback.control("luggage", group, bags)
-        column.space(14)
+        column.space(12)
+        column.navigationLink("Consulter les tarifs par zones", R.drawable.ic_devis) { render(Screen.TARIFFS) }
+        column.space(8)
         column.action(if (beforeEdit == null) "Continuer" else "Enregistrer les modifications", true) {
             val issue = booking().validateTrip(returnRequested = roundTrip)
             when {
@@ -428,7 +433,7 @@ class MainActivity : AppCompatActivity() {
         trip.label("$passengers · $luggage", 15f)
         trip.space(8)
         trip.label(if (service == Service.DEVIS) "Tarif communiqué sur devis."
-            else "Phoenix LTS confirmera le prix et la disponibilité.", 14f, Palette.muted)
+            else "Tarifs locaux selon la distance routière : 5 à 10 € par trajet jusqu’à 20 km. Hors zone : sur devis. Le tarif et la disponibilité seront confirmés par Phoenix LTS.", 14f, Palette.muted)
         trip.navigationLink("Modifier le trajet") { editFromReview(Screen.TRIP) }.isEnabled = !busy
         column.space(10)
         val details = column.panel("Contact")
@@ -575,6 +580,57 @@ class MainActivity : AppCompatActivity() {
         }
         privateTrip.space(10)
         privateTrip.action("Demander un devis", true) { start(Service.DEVIS) }
+        column.space(12)
+        column.action("Consulter les tarifs", iconRes = R.drawable.ic_devis) { render(Screen.TARIFFS) }
+    }
+
+    private fun tariffs() {
+        column.label("Nos tarifs", 28f, bold = true, heading = true)
+        column.space(7)
+        column.label("Tarifs par zones · Secteurs Forêts du Perche et Terres de Perche", 15f, Palette.muted)
+        column.space(12)
+
+        fun sector(title: String, centre: String) {
+            val panel = column.panel(title)
+            panel.label("Point central : $centre", 16f, Palette.sun, bold = true)
+            panel.space(9)
+            for (zone in Tariffs.zones) {
+                val lower = when (zone.number) {
+                    1 -> "0 à 3 km"
+                    2 -> "3 à 8 km"
+                    3 -> "8 à 13 km"
+                    else -> "13 à 20 km"
+                }
+                val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+                val left = line.label("Zone ${zone.number} · $lower", 15f).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                }
+                line.label("${zone.oneWayEuros} €", 18f, Palette.sun, bold = true).apply {
+                    layoutParams = LinearLayout.LayoutParams(-2, -2)
+                }
+                panel.addView(line, -1, -2)
+                panel.space(8)
+                if (zone.number != 4) panel.rule()
+                if (zone.number != 4) panel.space(8)
+            }
+            panel.rule()
+            panel.space(9)
+            panel.label("Hors zone ou trajet spécifique : sur devis", 15f, bold = true)
+            column.space(12)
+        }
+
+        sector("Forêts du Perche", "Senonches")
+        sector("Terres de Perche", "La Loupe")
+        val conditions = column.panel("Comment fonctionne la tarification ?")
+        conditions.label("Tarifs indiqués pour un trajet simple, selon la distance routière réelle et l’adresse exacte.", 15f)
+        conditions.space(7)
+        conditions.label("Aller-retour = deux trajets. Exemple : zone 2, 6 € l’aller et 12 € l’aller-retour.", 15f)
+        conditions.space(7)
+        conditions.label("Ces montants sont indicatifs : Phoenix LTS valide le tarif, les horaires et la disponibilité avant confirmation.", 15f, Palette.muted)
+        column.space(12)
+        column.action("Demander une navette", true, R.drawable.ic_navette) { start(Service.NAVETTE) }
+        column.space(7)
+        column.action("Demander un devis") { start(Service.DEVIS) }
     }
 
     private fun contact() {
@@ -582,12 +638,30 @@ class MainActivity : AppCompatActivity() {
         column.space(12)
         val panel = column.panel("Phoenix LTS")
         panel.label("Transport de personnes, transport à la demande et transferts privés.", 16f)
-        if (BuildConfig.BOOKING_EMAIL.isNotBlank()) {
-            panel.space(10)
-            panel.label(BuildConfig.BOOKING_EMAIL, 15f)
-            panel.action("Écrire à Phoenix LTS") { open(Uri.fromParts("mailto", BuildConfig.BOOKING_EMAIL, null)) }
+        panel.space(12)
+        panel.label("Renseignements", 15f, Palette.muted)
+        panel.label("06 85 70 43 36", 20f, bold = true)
+        panel.space(6)
+        panel.action("Appeler pour un renseignement", iconRes = R.drawable.ic_contact) {
+            open(Uri.fromParts("tel", Tariffs.INFORMATION_PHONE, null))
+        }
+        panel.space(12)
+        panel.label("Service réservation", 15f, Palette.muted)
+        panel.label("06 52 75 82 86", 20f, bold = true)
+        panel.space(6)
+        panel.action("Appeler les réservations", true, R.drawable.ic_contact) {
+            open(Uri.fromParts("tel", Tariffs.RESERVATION_PHONE, null))
+        }
+        panel.space(12)
+        panel.label("E-mail réservation", 15f, Palette.muted)
+        panel.label(Tariffs.RESERVATION_EMAIL, 15f).setTextIsSelectable(true)
+        panel.space(6)
+        panel.action("Écrire au service réservation") {
+            open(Uri.fromParts("mailto", Tariffs.RESERVATION_EMAIL, null))
         }
         column.space(12)
+        column.action("Consulter les tarifs", iconRes = R.drawable.ic_devis) { render(Screen.TARIFFS) }
+        column.space(9)
         column.action("Notre site officiel") { open("https://www.navettephoenix.fr/".toUri()) }
         column.space(9)
         column.action("Politique de confidentialité") { showPrivacy() }
