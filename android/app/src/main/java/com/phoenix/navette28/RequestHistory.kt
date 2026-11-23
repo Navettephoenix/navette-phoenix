@@ -1,5 +1,9 @@
 package com.phoenix.navette28
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.LinearLayout
 import com.google.android.gms.tasks.Task
@@ -112,24 +116,52 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                 // La fiche détaillée est consultable à la demande : la liste reste compacte.
                 val details = card.context.column().apply { visibility = View.GONE }
                 card.addView(details, -1, -2)
-                details.label(statusLabel(entry.status), 15f, Palette.muted)
-                details.space(10)
-                if (from.isNotEmpty()) {
-                    details.label("Départ  ·  $from", 16f, Palette.ink)
-                    details.space(6)
+                // Statut clairement identifiable, sans confondre transmission et confirmation.
+                val statusBox = details.context.column().apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(context.dp(12), context.dp(12), context.dp(12), context.dp(12))
+                    background = GradientDrawable().apply {
+                        setColor(0xFFFFF1E9.toInt())
+                        cornerRadius = context.dp(12).toFloat()
+                    }
                 }
-                if (to.isNotEmpty()) {
-                    details.label("Arrivée  ·  $to", 16f, Palette.ink)
-                    details.space(6)
+                statusBox.label("STATUT DE LA DEMANDE", 12f, Palette.muted, bold = true)
+                statusBox.space(5)
+                statusBox.label(statusLabel(entry.status), 16f, statusTone(entry.status), bold = true)
+                details.addView(statusBox, -1, -2)
+                details.space(16)
+
+                fun detailLine(heading: String, value: String) {
+                    details.label(heading, 13f, Palette.muted, bold = true)
+                    details.space(4)
+                    details.label(value, 16f, Palette.ink)
+                    details.space(12)
+                }
+
+                if (from.isNotEmpty() || to.isNotEmpty()) {
+                    details.label("TRAJET", 13f, Palette.sun, bold = true)
+                    details.space(10)
+                    if (from.isNotEmpty()) detailLine("Départ", from)
+                    if (to.isNotEmpty()) detailLine("Arrivée", to)
                 }
                 if (entry.pricingType == "FIXED" && entry.pricingZone != null &&
                     entry.pricePerPassenger != null && entry.passengers != null) {
-                    details.label("Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)", 15f, Palette.muted)
+                    details.label("TARIFICATION", 13f, Palette.sun, bold = true)
                     details.space(8)
+                    detailLine("Détail du tarif", "Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)")
                 }
-                details.label("Référence  ·  ${entry.reference}", 15f, Palette.muted)
+                details.label("RÉFÉRENCE DE LA DEMANDE", 13f, Palette.muted, bold = true)
+                details.space(5)
+                details.label(entry.reference, 16f, Palette.ink, bold = true)
                     .setTextIsSelectable(true)
                 details.space(8)
+                val copyButton = details.action("Copier la référence") {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Référence Navette Phoenix", entry.reference))
+                    android.widget.Toast.makeText(context, "Référence copiée", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                copyButton.contentDescription = "Copier la référence ${entry.reference}"
+                details.space(14)
                 val toggle = card.action("Voir les détails") {
                     val expanded = details.visibility != View.VISIBLE
                     details.visibility = if (expanded) View.VISIBLE else View.GONE
