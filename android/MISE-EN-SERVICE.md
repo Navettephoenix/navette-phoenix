@@ -1,3 +1,47 @@
+# V20.1 — nouvelles améliorations progressives (23 novembre 2026)
+
+Ce document complète les instructions ci-dessous. **Le circuit officiel Firebase → Apps Script → Gmail reste prioritaire** : ne pas le redéployer sans sauvegarde et vérification.
+
+## Trajets favoris et accessibilité
+
+- Depuis le formulaire de réservation, sélectionner deux communes et utiliser « Mémoriser ce trajet sur cet appareil ». Cette action est volontaire.
+- « Reprendre mon trajet favori » recharge seulement le départ et l'arrivée (communes et lieux précis) ; aucune coordonnée personnelle, date ou horaire n'est mémorisé.
+- « Supprimer ce trajet mémorisé » efface le favori sur l'appareil.
+- Tester après retour à l'accueil, fermeture et réouverture de l'application. Le prix doit être recalculé selon le trajet et le nombre de passagers en cours.
+- L'historique affiche l'heure de la dernière actualisation réussie. Une erreur réseau ne doit pas effacer les anciennes demandes.
+- Les cartes indiquent un état de réservation distinct : `PENDING` = à transmettre ; `SENT` = e-mail transmis, **en attente de confirmation** ; `CONFIRMED` seulement = réservation confirmée.
+
+## Accusé automatique au client : préparé, désactivé par défaut
+
+Le dépôt contient un projet d'accusé de réception transactionnel distinct du courriel reçu par Phoenix LTS. Le fichier `google-apps-script/Code.gs` définit `ENABLE_CUSTOMER_RECEIPTS_ = false`. **Ne pas passer à true tant que les prérequis ne sont pas terminés.** Le code n'est pas installé automatiquement dans le projet Google Apps Script existant.
+
+Préparation nécessaire avant une activation explicite :
+
+1. Vérifier la politique de confidentialité (l'adresse e-mail sert aussi à l'accusé de réception client), la boîte de réponse et le quota Google Apps Script. Une demande utilise **jusqu'à deux destinataires** : Phoenix LTS et le client. Respecter les limites du compte Google.
+2. Déployer l'index `customerReceiptStatus` dans `firebase/firestore.indexes.json` (répertoire `android/firebase`), via `firebase deploy --only firestore:indexes --project navette-phoenix`, puis attendre que l'index soit prêt.
+3. Sauvegarder le `Code.gs` actif ; copier la nouvelle version depuis le dépôt sans écraser `Installation.gs` ni créer un second déclencheur. Avec le drapeau encore à `false`, exécuter `testerAccuseClientSansEnvoi` (test du modèle, **n'envoie aucun e-mail**) puis `diagnostiquerNavettePhoenix`. Vérifier `customerReceiptsEnabled:false`.
+4. Quand les contrôles sont terminés, activer volontairement `ENABLE_CUSTOMER_RECEIPTS_ = true` dans Apps Script et enregistrer (ne pas « Déployer » en application Web). Faire **une seule nouvelle réservation de test** et vérifier séparément le courriel Phoenix LTS, l'accusé client et le statut Firestore.
+5. Les demandes antérieures à l'activation n'ont pas de réémission automatique. Le relais utilise `customerReceiptStatus: PENDING → SENDING → SENT` ; si une demande reste `SENDING`, **vérifier la messagerie avant toute intervention**. Ne pas réinitialiser ce statut à l'aveugle (risque de doublon).
+
+L'accusé client doit dire *demande transmise, en attente de validation*. Il **ne confirme jamais** le trajet.
+
+## Notifications et Google Play
+
+Le mode `navetteGoogleMail=true` n'a pas encore de mécanisme de notification push automatique à chaque changement de statut ; l'utilisateur consulte « Mes demandes » et peut actualiser. Ne pas présenter cette fonction comme opérationnelle avant d'avoir ajouté un backend et testé FCM. La permission Android 13+ doit rester facultative.
+
+Les nouveaux éléments n'ont pas encore été compilés sur le PC depuis ces commits. Lancer :
+```powershell
+cd "C:\Users\PC\Documents\NavettePhoenix-V20\android"
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+git pull --ff-only origin refonte-v20-verifiee
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+```
+
+Avant tout fichier AAB : relever dans Play Console le `versionCode` maximal et l'empreinte SHA-256 **du certificat de clé d'importation** ; configurer les secrets locaux, la configuration Firebase release de `com.phoenix.navette` et `verifyPlayBundle`. La réussite du build debug n'autorise pas à considérer l'AAB release comme prêt.
+
+---
+
 
 ## V20.1 — contrôle qualité avant mise à jour Play Console
 
