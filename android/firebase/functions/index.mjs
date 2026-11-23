@@ -66,6 +66,11 @@ export const listReservations = onCall(callable, async request => {
     .orderBy('createdAt', 'desc').limit(30).get();
   return { reservations: snapshot.docs.map(doc => ({
     reference: doc.get('reference'), status: doc.get('status'),
+    service: doc.get('service'), departure: doc.get('departure'), arrival: doc.get('arrival'),
+    date: doc.get('date'), time: doc.get('time'),
+    pricingType: doc.get('pricingType') ?? null, pricingSector: doc.get('pricingSector') ?? null,
+    pricingZone: doc.get('pricingZone') ?? null, passengers: doc.get('passengers') ?? null,
+    pricePerPassenger: doc.get('pricePerPassenger') ?? null, priceTotal: doc.get('priceTotal') ?? null,
   })) };
 });
 
