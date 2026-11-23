@@ -740,7 +740,7 @@ class MainActivity : AppCompatActivity() {
     private fun tariffs() {
         column.label("Nos tarifs", 28f, bold = true, heading = true)
         column.space(7)
-        column.label("Tarifs par passager et par trajet simple · Forêts du Perche et Terres de Perche", 15f, Palette.muted)
+        column.label("Prix par passager pour un aller simple, selon la zone desservie.", 16f, Palette.muted)
         column.space(12)
 
         fun sector(title: String, centre: String, secteur: PricingCalculator.Secteur) {
@@ -754,7 +754,7 @@ class MainActivity : AppCompatActivity() {
                 val places = PricingCalculator.localites.filter {
                     it.secteur == secteur && it.zone == zone
                 }.joinToString(", ") { it.commune }
-                panel.label(places, 14f, Palette.muted)
+                panel.label(places, 16f, Palette.muted)
                 panel.space(9)
                 if (zone != 4) {
                     panel.rule()
@@ -763,20 +763,24 @@ class MainActivity : AppCompatActivity() {
             }
             panel.rule()
             panel.space(9)
-            panel.label("Hors zone ou trajet spécifique : sur devis", 15f, bold = true)
+            panel.label("Trajet hors zone ou spécifique : devis personnalisé.", 16f, bold = true)
             column.space(12)
         }
 
         sector("Forêts du Perche", "Senonches", PricingCalculator.Secteur.FORETS_DU_PERCHE)
         sector("Terres du Perche", "La Loupe", PricingCalculator.Secteur.TERRES_DE_PERCHE)
-        val conditions = column.panel("Comment fonctionne la tarification ?")
-        conditions.label("Pour deux communes du même secteur, la zone applicable est la plus élevée des deux.", 15f)
+        val conditions = column.panel("Comment sont calculés les tarifs ?")
+        conditions.label("Le prix dépend de la zone desservie, du nombre de passagers et du type de trajet.", 16f)
+        conditions.space(10)
+        conditions.label("Entre deux communes du même secteur, le tarif de la zone la plus élevée s’applique.", 16f)
         conditions.space(7)
-        conditions.label("Total = tarif par passager × passagers (1 à 4) × deux pour un aller-retour.", 15f)
+        conditions.label("Exemple : 2 passagers en zone 4, pour un aller simple : 10 € × 2 = 20 €.", 16f, bold = true)
+        conditions.space(10)
+        conditions.label("Pour un aller-retour, le prix est multiplié par deux.", 16f)
         conditions.space(7)
-        conditions.label("Les bagages n'ajoutent aucun supplément. Entre secteurs ou hors liste : sur devis.", 15f)
+        conditions.label("Les bagages sont inclus, sans supplément. Les trajets entre secteurs, hors zones ou spécifiques font l’objet d’un devis personnalisé.", 16f)
         conditions.space(7)
-        conditions.label("Tarif estimé, confirmé par le service de réservation.", 15f, Palette.muted)
+        conditions.label("Le tarif affiché est une estimation. Le montant définitif est confirmé par le service de réservation.", 16f, Palette.muted)
         column.space(12)
         column.action("Demander une navette", true, R.drawable.ic_navette) { start(Service.NAVETTE) }
         column.space(7)
