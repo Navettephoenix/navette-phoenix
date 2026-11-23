@@ -203,6 +203,9 @@ function diagnostiquerNavettePhoenix() {
         where: { fieldFilter: {
           field: { fieldPath: 'mailStatus' }, op: 'EQUAL', value: { stringValue: status }
         } },
+        // Même index composite que le relais : mailStatus + createdAt ASC.
+        // Sans tri, Firestore peut exiger un index COLLECTION_GROUP distinct.
+        orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'ASCENDING' }],
         limit: 100
       }
     });
