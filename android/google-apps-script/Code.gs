@@ -164,10 +164,18 @@ function firestore_(path, method, token, body, allowConflict) {
   });
   const code = response.getResponseCode();
   if (code < 200 || code >= 300) {
-    if (allowConflict && [404, 409, 412].includes(code)) return null;
-    if (allowConflict && code === 400 &&
-        JSON.parse(response.getContentText()).error.status === 'FAILED_PRECONDITION') return null;
-    throw new Error('Firestore a renvoyé une erreur HTTP ' + code + '.');
+    const details = (() => {
+      try { return JSON.parse(response.getContentText()).error || {}; }
+      catch (_) { return {}; }
+    })();
+    if (allowConflict && ([404, 409, 412].includes(code) ||
+        (code === 400 && details.status === 'FAILED_PRECONDITION'))) return null;
+    // Exposer la réponse officielle Firestore sans jeton OAuth ni données personnelles.
+    // Une erreur FAILED_PRECONDITION signale souvent un index COLLECTION_GROUP manquant.
+    const message = String(details.message || 'Vérifier les index et les autorisations Firestore.')
+      .slice(0, 1200);
+    throw new Error('Firestore HTTP ' + code + ' (' +
+      (details.status || 'ERREUR') + ') : ' + message);
   }
   return JSON.parse(response.getContentText());
 }
