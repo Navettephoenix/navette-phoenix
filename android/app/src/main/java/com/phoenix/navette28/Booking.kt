@@ -40,6 +40,12 @@ data class Booking(
         )
 
     fun validateAddresses(): BookingIssue? {
+        if (departureCommune.isBlank()) {
+            return BookingIssue("departure", "Choisissez votre commune de départ.")
+        }
+        if (arrivalCommune.isBlank()) {
+            return BookingIssue("arrival", "Choisissez votre commune d’arrivée.")
+        }
         if (departureCommune == PricingCalculator.AUTRE_COMMUNE && departureDetail.isBlank()) {
             return BookingIssue("departure", "Précisez la commune et le lieu de départ.")
         }
