@@ -16,6 +16,9 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ArrayAdapter
+import android.widget.ListView
+import android.widget.TextView
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -274,8 +277,9 @@ class MainActivity : AppCompatActivity() {
     private fun trip() {
         column.stepHeader(service.label, 1, "Trajet")
         val address = column.panel("Départ et arrivée")
-        addressField(address, "Départ", "departure")
-        addressField(address, "Arrivée", "arrival")
+        var updateFare: () -> Unit = {}
+        communeField(address, "Départ", "departure") { updateFare() }
+        communeField(address, "Arrivée", "arrival") { updateFare() }
         address.navigationLink(if (BuildConfig.GOOGLE_MAIL) "Voir dans Google Maps" else "Voir l’itinéraire",
             R.drawable.ic_destinations) {
             val current = booking()
@@ -309,11 +313,15 @@ class MainActivity : AppCompatActivity() {
             returnControls.visibility = if (checked) View.VISIBLE else View.GONE
             feedback.changed("returnDate")
             feedback.changed("returnTime")
+            updateFare()
         }
         column.space(10)
         val group = column.panel("Passagers et bagages")
         val passengers = group.quantity(R.plurals.passengers, R.string.remove_passenger, R.string.add_passenger,
-            1..4, value("passengers").toIntOrNull() ?: 1) { values["passengers"] = it.toString() }
+            1..4, value("passengers").toIntOrNull() ?: 1) {
+                values["passengers"] = it.toString()
+                updateFare()
+            }
         feedback.control("passengers", group, passengers)
         group.space(8)
         group.rule()
@@ -321,6 +329,38 @@ class MainActivity : AppCompatActivity() {
         val bags = group.quantity(R.plurals.bags, R.string.remove_bag, R.string.add_bag,
             0..16, value("luggage").toIntOrNull() ?: 0) { values["luggage"] = it.toString() }
         feedback.control("luggage", group, bags)
+        column.space(12)
+        val price = column.panel("Tarif estimé")
+        val zoneLabel = price.label("", 16f, Palette.ink, bold = true)
+        price.space(6)
+        val singleLabel = price.label("", 15f)
+        price.space(7)
+        val totalLabel = price.label("", 25f, Palette.sun, bold = true)
+        price.space(6)
+        price.label("Tarif estimé, confirmé par le service de réservation.", 13f, Palette.muted)
+        val quoteButton = price.action("Demander un devis") {
+            service = Service.DEVIS
+            render(Screen.TRIP)
+        }
+        updateFare = {
+            val result = PricingCalculator.calculerTarif(
+                value("departureCommune"), value("arrivalCommune"), roundTrip,
+                value("passengers").toIntOrNull() ?: 1
+            )
+            if (result is PricingCalculator.Resultat.Tarif) {
+                zoneLabel.text = "Zone ${result.zone} · ${result.prixParPassager} € par passager"
+                singleLabel.text = "${value("passengers")} passager(s) : ${result.prixTotalTrajet} € le trajet"
+                totalLabel.text = if (roundTrip) "Total aller-retour : ${result.prixTotal} €"
+                    else "Total : ${result.prixTotal} €"
+                quoteButton.visibility = View.GONE
+            } else {
+                zoneLabel.text = "Tarif sur devis"
+                singleLabel.text = "Trajet hors zone, entre secteurs ou commune à préciser."
+                totalLabel.text = ""
+                quoteButton.visibility = if (service == Service.DEVIS) View.GONE else View.VISIBLE
+            }
+        }
+        updateFare()
         column.space(12)
         column.navigationLink("Consulter les tarifs par zones", R.drawable.ic_devis) { render(Screen.TARIFFS) }
         column.space(8)
@@ -334,39 +374,70 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addressField(parent: LinearLayout, title: String, key: String) {
-        val useLocalPlaces = BuildConfig.GOOGLE_MAIL || !gateway.available
-        val field = bind(parent, title, key, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS,
-            suggestions = if (useLocalPlaces) localPlaces else emptyList())
-        if (useLocalPlaces) return
-        var searching = false
-        val search = parent.action("Suggestions pour « $title »") {
-            if (searching) return@action
-            val query = field.text.toString().trim()
-            if (query.length < 3) {
-                field.error = "Saisissez au moins trois caractères."
-                return@action
-            }
-            searching = true
-            gateway.call("suggestAddresses", mapOf("query" to query)).addOnCompleteListener(this) { task ->
-                searching = false
-                if (screen != Screen.TRIP || !field.isAttachedToWindow || field.text.toString().trim() != query) {
-                    return@addOnCompleteListener
-                }
-                if (!task.isSuccessful) {
-                    showMessage("La recherche est indisponible. Vous pouvez compléter l’adresse à la main.")
-                    return@addOnCompleteListener
-                }
-                val items = ((task.result as? Map<*, *>)?.get("addresses") as? List<*>)
-                    .orEmpty().filterIsInstance<String>().toTypedArray()
-                if (items.isEmpty()) showMessage("Aucune adresse trouvée. Ajoutez la commune ou le code postal.")
-                else MaterialAlertDialogBuilder(this).setTitle("Choisir une adresse").setItems(items) { _, which ->
-                    field.setText(items[which])
-                }.setNegativeButton("Annuler", null).show()
+    /** A commune is selected from a searchable list; detailed pickup points remain free-form. */
+    private fun communeField(parent: LinearLayout, label: String, key: String, changed: () -> Unit) {
+        val communeKey = "${key}Commune"
+        val detailKey = "${key}Detail"
+        if (value(communeKey).isEmpty() && value(key).isNotEmpty()) {
+            values[communeKey] = PricingCalculator.commune(value(key))?.commune
+                ?: PricingCalculator.AUTRE_COMMUNE
+            if (value(communeKey) == PricingCalculator.AUTRE_COMMUNE) {
+                values[detailKey] = value(key)
             }
         }
-        search.textSize = 14f
-        parent.space(9)
+
+        fun updateAddress() {
+            val commune = value(communeKey)
+            val detail = value(detailKey)
+            values[key] = if (commune == PricingCalculator.AUTRE_COMMUNE) {
+                detail.ifBlank { commune }
+            } else listOf(commune, detail).filter(String::isNotBlank).joinToString(" · ")
+            feedback.changed(key)
+            changed()
+        }
+
+        lateinit var selector: EditText
+        selector = parent.pickerField("$label · Commune", value(communeKey), R.drawable.ic_destinations) {
+            val search = EditText(this).apply {
+                hint = "Rechercher une commune"
+                setSingleLine(true)
+                minHeight = dp(56)
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+            }
+            val list = ListView(this)
+            val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, PricingCalculator.communes.toMutableList())
+            list.adapter = adapter
+            val popup = column().apply {
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                addView(search, -1, -2)
+                addView(list, LinearLayout.LayoutParams(-1, dp(320)))
+            }
+            val dialog = MaterialAlertDialogBuilder(this)
+                .setTitle("Choisir la commune de $label")
+                .setView(popup)
+                .setNegativeButton("Annuler", null).create()
+            search.doAfterTextChanged { editable ->
+                val query = PricingCalculator.normaliser(editable?.toString().orEmpty())
+                val matches = PricingCalculator.communes.filter {
+                    PricingCalculator.normaliser(it).contains(query)
+                }
+                adapter.clear()
+                adapter.addAll(matches)
+                adapter.notifyDataSetChanged()
+            }
+            list.setOnItemClickListener { _, _, position, _ ->
+                values[communeKey] = adapter.getItem(position).orEmpty()
+                selector.setText(value(communeKey))
+                selector.contentDescription = "$label · Commune : ${value(communeKey)}"
+                updateAddress()
+                dialog.dismiss()
+            }
+            dialog.show()
+        }
+        feedback.control(key, parent, selector)
+        val detail = bind(parent, "$label · Lieu précis (gare, mairie, adresse…)", detailKey, limit = 150)
+        detail.doAfterTextChanged { updateAddress() }
+        updateAddress()
     }
 
     private fun details() {
@@ -432,8 +503,18 @@ class MainActivity : AppCompatActivity() {
         val luggage = resources.getQuantityString(R.plurals.bags, current.luggage, current.luggage)
         trip.label("$passengers · $luggage", 15f)
         trip.space(8)
-        trip.label(if (service == Service.DEVIS) "Tarif communiqué sur devis."
-            else "Tarifs locaux selon la distance routière : 5 à 10 € par trajet jusqu’à 20 km. Hors zone : sur devis. Le tarif et la disponibilité seront confirmés par Phoenix LTS.", 14f, Palette.muted)
+        val fare = current.pricing
+        if (fare is PricingCalculator.Resultat.Tarif) {
+            val tarif = trip.panel("Tarif estimé")
+            tarif.label("Zone ${fare.zone} · ${fare.secteur.label}", 16f, bold = true)
+            tarif.label("${fare.prixParPassager} € par passager × ${current.passengers} passager(s)", 15f)
+            tarif.label("${fare.prixTotalTrajet} € par trajet", 15f)
+            tarif.label("Total${if (roundTrip) " aller-retour" else ""} : ${fare.prixTotal} €",
+                24f, Palette.sun, bold = true)
+        } else {
+            trip.label("Tarif sur devis", 20f, Palette.sun, bold = true)
+        }
+        trip.label("Tarif estimé, confirmé par le service de réservation.", 14f, Palette.muted)
         trip.navigationLink("Modifier le trajet") { editFromReview(Screen.TRIP) }.isEnabled = !busy
         column.space(10)
         val details = column.panel("Contact")
@@ -771,7 +852,9 @@ class MainActivity : AppCompatActivity() {
     private fun booking() = Booking(service, value("departure"), value("arrival"), value("date"), value("time"),
         if (roundTrip) value("returnDate") else "", if (roundTrip) value("returnTime") else "",
         (values["passengers"] ?: "1").toIntOrNull() ?: -1, (values["luggage"] ?: "0").toIntOrNull() ?: -1,
-        value("name"), value("phone"), value("email"), value("needs"), value("notes"), consent)
+        value("name"), value("phone"), value("email"), value("needs"), value("notes"), consent,
+        value("departureCommune"), value("arrivalCommune"),
+        value("departureDetail"), value("arrivalDetail"))
 
     private fun showMessage(text: String) {
         MaterialAlertDialogBuilder(this).setMessage(text).setPositiveButton("OK", null).show()
