@@ -41,6 +41,32 @@ Les trajets au sein d'une même commune nécessitent deux lieux de prise en char
 
 **Correctif de compilation du 23 novembre 2026** : `PricingCalculator` est public afin que la propriété `Booking.pricing` ne révèle plus un type interne. Les tests Kotlin, Firebase et Apps Script incluent désormais les trajets dans une même zone. Recompiler après `git pull`.
 
+## Recherche d'adresse assistée
+
+L'écran « Départ et arrivée » conserve la liste des communes, les lieux précis et les tarifs existants. Le lien **Rechercher une adresse (IGN)** utilise désormais le moteur public de la Géoplateforme `https://data.geopf.fr/geocodage/search` (index des adresses, puis points d'intérêt si aucun résultat). La recherche n'est lancée **qu'après appui** sur le lien. Les résultats sont filtrés par commune sélectionnée pour éviter de choisir une adresse située dans une autre zone tarifaire. Pour « Autre commune », le filtre communal est désactivé.
+
+L'utilisateur peut conserver une saisie manuelle lorsque la mairie, la gare, le lieu-dit ou l'adresse n'est pas référencé. L'application ne prétend pas certifier une adresse non reconnue : le client peut consulter son itinéraire dans Google Maps. Les mots envoyés à IGN sont indiqués sous le champ et dans la page Confidentialité. Aucun nouveau secret Google Maps ni service Firebase Functions n'est requis pour les recherches IGN.
+
+## Diagnostic d'une réservation sans e-mail (ne pas dupliquer)
+
+Une nouvelle réservation V20 comporte des champs supplémentaires (`departureCommune`, `pricingType`, `priceTotal`, etc.). **Si les règles Firestore du serveur sont encore anciennes, la transaction est refusée**, même si le projet Android compile. Depuis le dossier `android` du projet sous PowerShell :
+
+```powershell
+.\tools\deploy-firestore-rules.ps1
+```
+
+Le script ne déploie que les **règles Firestore** sur `navette-phoenix`; il ne met pas en ligne l'application ni les Functions.
+
+Sur l'appareil : ouvrir **Mes demandes**, puis **Actualiser**. Interprétation :
+
+- `PENDING` : la demande existe dans Firestore, mais le relais n'a pas encore confirmé l'envoi de l'e-mail. Vérifier le déclencheur Google et le `Code.gs` actuellement actif.
+- `SENDING` : la commande d'envoi a pu réussir sans mise à jour finale du statut. **Contrôler la boîte Gmail et les journaux avant toute action**.
+- `SENT` : le relais a marqué l'envoi effectué ; contrôler les spams et la boîte de réception de `caro.resanavettephoenix@gmail.com`.
+- `INVALID` : le relais a rejeté la demande ; vérifier que `Code.gs` a été actualisé et que les nouveaux champs tarifaires correspondent au modèle V20.
+- Aucune demande ou message « envoi non autorisé » : rechercher une erreur `PERMISSION_DENIED` dans Logcat et vérifier que les règles Firestore V20 sont réellement déployées.
+
+Après synchronisation de `Code.gs`, sélectionner `diagnostiquerNavettePhoenix` dans Apps Script et examiner le rapport non destructif avant de lancer le relais ; conserver le déclencheur installé. Ne créer qu'**une seule réservation de test nouvelle** après mise en service et vérifier référence, statut et montant entre Android, Firestore et Gmail.
+
 ## Mise en service — ordre impératif
 
 1. **Synchroniser d'abord les règles Firestore** : depuis `android/firebase`, lancer avec le compte autorisé `firebase deploy --only firestore --project navette-phoenix`. Attendre le succès avant de tester l'envoi de l'APK V20 : sinon le serveur rejette ses nouveaux champs.
