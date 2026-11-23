@@ -668,21 +668,37 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun receipt() {
-        column.label("Demande enregistrée", 28f, bold = true, heading = true)
-        column.space(14)
-        val receipt = column.panel("Votre référence")
-        receipt.label(storage.getString("latest", "").orEmpty(), 20f, Palette.sun, bold = true)
+        column.space(10)
+        column.label("✓  Demande enregistrée", 27f, bold = true, heading = true)
+        column.space(8)
+        column.label("Merci ! Votre demande a bien été enregistrée. Retrouvez son suivi à tout moment.", 16f, Palette.muted)
+        column.space(18)
+
+        val receipt = column.panel("Référence de votre demande")
+        receipt.label(storage.getString("latest", "").orEmpty(), 21f, Palette.sun, bold = true)
             .setTextIsSelectable(true)
+        receipt.space(14)
+        receipt.label("Suivi de votre demande", 18f, bold = true)
         receipt.space(10)
+        receipt.label("✓  1. Demande enregistrée", 16f, bold = true)
+        receipt.space(8)
         val status = storage.getString("latestStatus", null)
-        receipt.label(statusLabel(status), 16f)
         if (status == "PENDING") {
-            receipt.space(6)
-            receipt.label("Demande enregistrée, mais sa transmission au service de réservation reste en attente. Consultez « Mes demandes » pour suivre son statut.", 15f, Palette.muted)
+            receipt.label("◷  2. Transmission en attente", 16f, Palette.sun, bold = true)
+            receipt.space(8)
+            receipt.label("3. Confirmation par notre équipe", 15f, Palette.muted)
+            receipt.space(14)
+            receipt.label("Votre demande est enregistrée. Son envoi au service de réservation est en attente. Consultez « Mes demandes » pour suivre sa transmission.", 15f, Palette.muted)
+        } else {
+            receipt.label("✓  2. " + statusLabel(status), 16f, Palette.sun, bold = true)
+            receipt.space(8)
+            receipt.label("3. Confirmation par notre équipe", 15f, Palette.muted)
         }
         column.space(16)
-        column.action("Voir mes demandes", true) { render(Screen.HISTORY) }
-        column.space(8)
+        column.label("Votre trajet n’est confirmé qu’après validation par notre service de réservation.", 15f, Palette.muted)
+        column.space(18)
+        column.action("Suivre ma demande", true) { render(Screen.HISTORY) }
+        column.space(10)
         column.action("Retour à l’accueil") { render(Screen.HOME) }
     }
     private fun history() {
