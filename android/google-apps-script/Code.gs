@@ -15,54 +15,83 @@ function relayGoogleMailRequests() {
     throw new Error('Identifiant du projet Firebase invalide.');
   }
 
-  // Un seul déclencheur traite la file. Le verrou se libère à la fin de l'exécution.
+  // Une seule exécution à la fois : une demande ne doit jamais être prise deux fois.
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
   try {
-    const limit = Math.min(10, MailApp.getRemainingDailyQuota());
-    if (limit < 1) return;
+    if (MailApp.getRemainingDailyQuota() < 1) {
+      console.warn('Quota Gmail épuisé : demandes conservées en attente, aucune relance forcée.');
+      return;
+    }
     const token = ScriptApp.getOAuthToken();
     const parent = 'projects/' + project + '/databases/(default)/documents';
-    const rows = firestore_(parent + ':runQuery', 'post', token, {
-      structuredQuery: {
-        from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
-        where: { fieldFilter: {
-          field: { fieldPath: 'mailStatus' }, op: 'EQUAL', value: { stringValue: 'PENDING' }
-        } },
-        orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'ASCENDING' }],
-        limit: limit
-      }
-    });
 
-    for (const row of rows) {
-      const document = row.document;
-      if (!document || !document.name.startsWith(parent + '/googleMailAccounts/')) continue;
-      const path = document.name.slice(parent.length + 1).split('/');
-      if (path.length !== 4 || path[2] !== 'googleMailRequests') continue;
-      const message = bookingMessage_(document, path[3]);
-      if (!message) {
-        updateMailState_(document, 'INVALID', token);
-        continue;
-      }
-
-      // Firestore confirme le verrou avant que Google reçoive l'ordre d'envoi.
-      // SENDING reste à vérifier si Google répond par une erreur ou si la tâche est interrompue.
-      const claimed = updateMailState_(document, 'SENDING', token);
-      if (!claimed) continue;
-      try {
-        MailApp.sendEmail({
-          to: recipient, subject: message.subject, body: message.body,
-          htmlBody: message.htmlBody,
-          replyTo: message.replyTo, name: 'Navette Phoenix 28'
-        });
-      } catch (_) {
-        console.warn('Transmission à vérifier dans Firestore pour une demande en état SENDING.');
-        continue;
-      }
-      updateMailState_(claimed, 'SENT', token);
-    }
+    // En mode accusé client, traiter d'abord les accusés déjà en file d'attente.
+    // Un échec du second flux ne bloque jamais l'e-mail prioritaire à Phoenix LTS.
     if (ENABLE_CUSTOMER_RECEIPTS_) {
-      relayCustomerReceipts_(parent, token);
+      try {
+        relayCustomerReceipts_(parent, token);
+      } catch (error) {
+        console.error('Accusés client à contrôler : ' + String(error.message || error));
+      }
+    }
+
+    const available = MailApp.getRemainingDailyQuota();
+    // Réserver un destinataire pour l'accusé client de chaque nouvelle demande.
+    // Le mode historique (false) conserve exactement sa limite habituelle de 10.
+    const limit = ENABLE_CUSTOMER_RECEIPTS_
+      ? Math.min(10, Math.floor(available / 2)) : Math.min(10, available);
+
+    if (limit > 0) {
+      const rows = firestore_(parent + ':runQuery', 'post', token, {
+        structuredQuery: {
+          from: [{ collectionId: 'googleMailRequests', allDescendants: true }],
+          where: { fieldFilter: {
+            field: { fieldPath: 'mailStatus' }, op: 'EQUAL', value: { stringValue: 'PENDING' }
+          } },
+          orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'ASCENDING' }],
+          limit
+        }
+      });
+
+      for (const row of rows) {
+        const document = row.document;
+        if (!document || !document.name.startsWith(parent + '/googleMailAccounts/')) continue;
+        const path = document.name.slice(parent.length + 1).split('/');
+        if (path.length !== 4 || path[2] !== 'googleMailRequests') continue;
+        const message = bookingMessage_(document, path[3]);
+        if (!message) {
+          updateMailState_(document, 'INVALID', token);
+          continue;
+        }
+
+        // Le verrou Firestore est acquis AVANT d'appeler Gmail.
+        // SENDING n'est jamais renvoyé automatiquement : livraison incertaine.
+        const claimed = updateMailState_(document, 'SENDING', token);
+        if (!claimed) continue;
+        try {
+          MailApp.sendEmail({
+            to: recipient, subject: message.subject, body: message.body,
+            htmlBody: message.htmlBody,
+            replyTo: message.replyTo, name: 'Navette Phoenix 28'
+          });
+        } catch (_) {
+          console.warn('Transmission à vérifier dans Firestore : SENDING conservé.');
+          continue;
+        }
+        const marked = updateMailState_(claimed, 'SENT', token);
+        if (!marked) {
+          console.warn('E-mail envoyé, mais accusé Firestore à vérifier : NE PAS renvoyer la demande.');
+        }
+      }
+    }
+
+    if (ENABLE_CUSTOMER_RECEIPTS_ && MailApp.getRemainingDailyQuota() > 0) {
+      try {
+        relayCustomerReceipts_(parent, token);
+      } catch (error) {
+        console.error('Accusés client à contrôler : ' + String(error.message || error));
+      }
     }
   } finally {
     lock.releaseLock();
@@ -211,11 +240,15 @@ function updateMailState_(document, state, token) {
   if (!document.updateTime) throw new Error('Version de demande Firestore absente.');
   // Seules les nouvelles demandes traitées APRÈS activation seront éligibles.
   const prepareReceipt = ENABLE_CUSTOMER_RECEIPTS_ && state === 'SENT';
-  const fields = { mailStatus: { stringValue: state } };
-  let mask = 'updateMask.fieldPaths=mailStatus';
+  const fields = {
+    mailStatus: { stringValue: state },
+    mailStatusUpdatedAt: { timestampValue: new Date().toISOString() }
+  };
+  let mask = 'updateMask.fieldPaths=mailStatus&updateMask.fieldPaths=mailStatusUpdatedAt';
   if (prepareReceipt) {
     fields.customerReceiptStatus = { stringValue: 'PENDING' };
-    mask += '&updateMask.fieldPaths=customerReceiptStatus';
+    fields.customerReceiptUpdatedAt = { timestampValue: new Date().toISOString() };
+    mask += '&updateMask.fieldPaths=customerReceiptStatus&updateMask.fieldPaths=customerReceiptUpdatedAt';
   }
   return firestore_(document.name + '?' + mask + '&currentDocument.updateTime='
     + encodeURIComponent(document.updateTime), 'patch', token, { fields }, true);
@@ -224,9 +257,13 @@ function updateMailState_(document, state, token) {
 /** Ne réessaie jamais automatiquement un accusé SENDING : vérifier Gmail d'abord. */
 function updateCustomerReceiptState_(document, state, token) {
   if (!document.updateTime) throw new Error('Version de demande Firestore absente.');
-  return firestore_(document.name + '?updateMask.fieldPaths=customerReceiptStatus&currentDocument.updateTime='
-    + encodeURIComponent(document.updateTime), 'patch', token, {
-    fields: { customerReceiptStatus: { stringValue: state } }
+  return firestore_(document.name +
+    '?updateMask.fieldPaths=customerReceiptStatus&updateMask.fieldPaths=customerReceiptUpdatedAt' +
+    '&currentDocument.updateTime=' + encodeURIComponent(document.updateTime), 'patch', token, {
+    fields: {
+      customerReceiptStatus: { stringValue: state },
+      customerReceiptUpdatedAt: { timestampValue: new Date().toISOString() }
+    }
   }, true);
 }
 
@@ -272,7 +309,10 @@ function relayCustomerReceipts_(parent, token) {
       console.warn('Accusé client à vérifier : statut SENDING conservé, aucun renvoi automatique.');
       continue;
     }
-    updateCustomerReceiptState_(claimed, 'SENT', token);
+    const marked = updateCustomerReceiptState_(claimed, 'SENT', token);
+    if (!marked) {
+      console.warn('Accusé client envoyé, mais accusé Firestore à vérifier : NE PAS renvoyer.');
+    }
   }
 }
 
