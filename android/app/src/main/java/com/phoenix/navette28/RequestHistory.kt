@@ -121,36 +121,40 @@ internal fun LinearLayout.requestHistory(latest: String?, load: (() -> Task<List
                     orientation = LinearLayout.VERTICAL
                     setPadding(context.dp(12), context.dp(12), context.dp(12), context.dp(12))
                     background = GradientDrawable().apply {
-                        setColor(0xFFFFF1E9.toInt())
+                        setColor(when (entry.status) {
+                            "CONFIRMED" -> 0xFFE7F4EB.toInt()
+                            "DECLINED", "CANCELLED", "INVALID" -> 0xFFFBE9E6.toInt()
+                            else -> 0xFFFFF1E9.toInt()
+                        })
                         cornerRadius = context.dp(12).toFloat()
                     }
                 }
-                statusBox.label("STATUT DE LA DEMANDE", 12f, Palette.muted, bold = true)
+                statusBox.label("STATUT DE LA DEMANDE", 14f, Palette.muted, bold = true)
                 statusBox.space(5)
                 statusBox.label(statusLabel(entry.status), 16f, statusTone(entry.status), bold = true)
                 details.addView(statusBox, -1, -2)
                 details.space(16)
 
                 fun detailLine(heading: String, value: String) {
-                    details.label(heading, 13f, Palette.muted, bold = true)
+                    details.label(heading, 14f, Palette.muted, bold = true)
                     details.space(4)
                     details.label(value, 16f, Palette.ink)
                     details.space(12)
                 }
 
                 if (from.isNotEmpty() || to.isNotEmpty()) {
-                    details.label("TRAJET", 13f, Palette.sun, bold = true)
+                    details.label("TRAJET", 14f, Palette.sun, bold = true)
                     details.space(10)
                     if (from.isNotEmpty()) detailLine("Départ", from)
                     if (to.isNotEmpty()) detailLine("Arrivée", to)
                 }
                 if (entry.pricingType == "FIXED" && entry.pricingZone != null &&
                     entry.pricePerPassenger != null && entry.passengers != null) {
-                    details.label("TARIFICATION", 13f, Palette.sun, bold = true)
+                    details.label("TARIFICATION", 14f, Palette.sun, bold = true)
                     details.space(8)
                     detailLine("Détail du tarif", "Zone ${entry.pricingZone} · ${entry.pricePerPassenger} € par passager · ${entry.passengers} passager(s)")
                 }
-                details.label("RÉFÉRENCE DE LA DEMANDE", 13f, Palette.muted, bold = true)
+                details.label("RÉFÉRENCE DE LA DEMANDE", 14f, Palette.muted, bold = true)
                 details.space(5)
                 details.label(entry.reference, 16f, Palette.ink, bold = true)
                     .setTextIsSelectable(true)
