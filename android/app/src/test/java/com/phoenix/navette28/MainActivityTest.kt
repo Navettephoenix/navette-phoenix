@@ -198,7 +198,7 @@ class MainActivityTest {
             next = Tasks.forException(IllegalStateException("offline"))
             content.button("Actualiser").performClick()
             shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(content.labels().containsAll(listOf(activity.getString(R.string.history_retry), "NP-DEMO")))
+            assertTrue(content.labels().containsAll(listOf(activity.getString(R.string.history_retry), "Référence  ·  NP-DEMO", "Référence  ·  NP-OLD")))
             next = Tasks.forResult(listOf(first.copy(status = "SENT")))
             content.button("Actualiser").performClick()
             shadowOf(Looper.getMainLooper()).idle()
