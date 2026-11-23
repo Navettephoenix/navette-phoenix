@@ -224,6 +224,23 @@ class MainActivityTest {
         assertTrue(ambiguous.contains("avant toute nouvelle demande"))
     }
 
+    @Test fun oldPendingCardWarnsWithoutSuggestingToResend() {
+        Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
+            val content = controller.get().column()
+            val old = System.currentTimeMillis() - 21 * 60 * 1000L
+            val first = RequestSummary("NP-LATE", "PENDING", createdAtMillis = old)
+            var next = Tasks.forResult(listOf(first))
+            content.requestHistory("NP-LATE") { next }
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(content.labels().any { it.contains("Transmission plus longue que prévu") })
+            assertTrue(content.labels().any { it.contains("Ne renvoyez pas la même demande") })
+            next = Tasks.forResult(listOf(first.copy(status = "SENT")))
+            content.button("Actualiser").performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertFalse(content.labels().any { it.contains("Transmission plus longue que prévu") })
+        }
+    }
+
     @Test fun historyKeepsLastResultsOnErrorAndRefreshesTheirStatus() {
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             val activity = controller.get()
