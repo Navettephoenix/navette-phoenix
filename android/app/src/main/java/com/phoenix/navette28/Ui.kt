@@ -52,7 +52,8 @@ fun LinearLayout.label(
     text = title
     textSize = size
     setTextColor(tone)
-    setLineSpacing(context.dp(2).toFloat(), 1f)
+    setLineSpacing(context.dp(3).toFloat(), 1.08f)
+    includeFontPadding = true
     if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     if (heading) ViewCompat.setAccessibilityHeading(this, true)
     this@label.addView(this, -1, -2)
@@ -60,16 +61,16 @@ fun LinearLayout.label(
 
 fun LinearLayout.panel(title: String? = null): LinearLayout = context.column().also {
     it.background = context.surface(Color.WHITE, border = true)
-    it.setPadding(context.dp(15), context.dp(15), context.dp(15), context.dp(15))
+    it.setPadding(context.dp(18), context.dp(18), context.dp(18), context.dp(18))
     addView(it, -1, -2)
     if (title != null) {
-        it.label(title, 19f, bold = true, heading = true)
-        it.space(10)
+        it.label(title, 20f, bold = true, heading = true)
+        it.space(14)
     }
 }
 
 fun LinearLayout.stepHeader(title: String, step: Int, section: String) {
-    label(context.getString(R.string.booking_step, step, section), 14f, Palette.sun, bold = true)
+    label(context.getString(R.string.booking_step, step, section), 15f, Palette.sun, bold = true)
     space(6)
     val track = LinearLayout(context).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
     repeat(3) { index ->
@@ -82,7 +83,7 @@ fun LinearLayout.stepHeader(title: String, step: Int, section: String) {
     }
     addView(track, -1, -2)
     space(14)
-    label(title, 28f, bold = true, heading = true)
+    label(title, 29f, bold = true, heading = true)
     space(14)
 }
 
@@ -92,7 +93,8 @@ fun LinearLayout.action(
     MaterialButton(context).apply {
         text = title
         isAllCaps = false
-        textSize = 16f
+        textSize = 16.5f
+        isSingleLine = false
         val enabled = intArrayOf(android.R.attr.state_enabled)
         val states = arrayOf(enabled, intArrayOf())
         val textColor = if (primary) Color.WHITE else Palette.ink
@@ -102,7 +104,7 @@ fun LinearLayout.action(
         ))
         strokeColor = ColorStateList.valueOf(Palette.line)
         strokeWidth = if (primary) 0 else context.dp(1)
-        cornerRadius = context.dp(15)
+        cornerRadius = context.dp(16)
         insetTop = 0
         insetBottom = 0
         if (iconRes != 0) {
@@ -111,8 +113,8 @@ fun LinearLayout.action(
             iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
             iconPadding = context.dp(9)
         }
-        minHeight = context.dp(52)
-        setPadding(context.dp(14), context.dp(10), context.dp(14), context.dp(10))
+        minHeight = context.dp(56)
+        setPadding(context.dp(16), context.dp(12), context.dp(16), context.dp(12))
         gravity = Gravity.CENTER
         setOnClickListener { call() }
         this@action.addView(this, -1, -2)
@@ -125,7 +127,7 @@ fun LinearLayout.navigationLink(title: String, iconRes: Int = 0, call: () -> Uni
         gravity = Gravity.START or Gravity.CENTER_VERTICAL
         iconGravity = MaterialButton.ICON_GRAVITY_START
         setPadding(context.dp(8), context.dp(10), context.dp(8), context.dp(10))
-        minHeight = context.dp(48)
+        minHeight = context.dp(52)
     }
 
 fun LinearLayout.backLink(call: () -> Unit) =
@@ -206,8 +208,8 @@ fun LinearLayout.field(
         filters = arrayOf(InputFilter.LengthFilter(limit))
         if (this is AutoCompleteTextView) setText(value, false) else setText(value)
         setPaddingRelative(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
-        textSize = 16f
-        minHeight = context.dp(56)
+        textSize = 17f
+        minHeight = context.dp(60)
     }
     layout.addView(field, -1, -2)
     addView(layout, -1, -2)
@@ -241,7 +243,7 @@ fun LinearLayout.pickerField(
         isLongClickable = false
         isCursorVisible = false
         minHeight = context.dp(56)
-        textSize = 16f
+        textSize = 17f
         setPaddingRelative(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
         setOnClickListener { pick() }
         contentDescription = if (selectedValue.isEmpty()) "Choisir $title" else "$title : $selectedValue"
