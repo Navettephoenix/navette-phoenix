@@ -340,7 +340,8 @@ class MainActivity : AppCompatActivity() {
         price.label("Tarif estimé, confirmé par le service de réservation.", 13f, Palette.muted)
         val quoteButton = price.action("Demander un devis") {
             service = Service.DEVIS
-            render(Screen.TRIP)
+            val ready = booking().validateTrip(returnRequested = roundTrip) == null
+            render(if (ready) Screen.CONTACT_FORM else Screen.TRIP)
         }
         updateFare = {
             val result = PricingCalculator.calculerTarif(
